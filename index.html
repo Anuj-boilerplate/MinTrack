@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FocusTerm | Academic Tracking</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app-container">
+        <!-- Setup Screen -->
+        <div id="setup-screen" class="screen hidden">
+            <div class="glass-panel">
+                <h1>Welcome to FocusTerm</h1>
+                <p>Let's set up your academic term.</p>
+                <form id="term-form">
+                    <div class="input-group">
+                        <label for="term-start">Start Date</label>
+                        <input type="date" id="term-start" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="term-end">End Date</label>
+                        <input type="date" id="term-end" required>
+                    </div>
+                    <button type="submit" class="primary-btn">Start Term</button>
+                </form>
+                
+                <div class="import-section">
+                    <p>Or import existing data:</p>
+                    <input type="file" id="import-file" accept=".json" class="hidden">
+                    <label for="import-file" class="secondary-btn">Import Backup</label>
+                </div>
+            </div>
+        </div>
+
+        <!-- Home Screen -->
+        <div id="home-screen" class="screen hidden">
+            <header>
+                <div>
+                    <h1 id="term-status">Term Active</h1>
+                    <p id="term-dates">...</p>
+                </div>
+                <div class="header-actions">
+                    <button id="add-subject-btn" class="icon-btn" title="Add Subject">+</button>
+                    <button id="settings-btn" class="icon-btn" title="Settings">⚙</button>
+                </div>
+            </header>
+
+            <main>
+                <div id="subjects-grid" class="grid">
+                    <!-- Subject Cards Injected Here -->
+                </div>
+            </main>
+            
+            <div id="term-ended-banner" class="hidden">
+                <h2>Term Ended</h2>
+                <p>You have reached the end of the term. No new targets are required.</p>
+            </div>
+        </div>
+
+        <!-- Add Subject Modal -->
+        <div id="add-subject-modal" class="modal hidden">
+            <div class="glass-panel">
+                <h2>Add Subject</h2>
+                <form id="subject-form">
+                    <div class="input-group">
+                        <label for="subject-name">Subject Name</label>
+                        <input type="text" id="subject-name" required placeholder="e.g. Calculus">
+                    </div>
+                    <div class="input-group">
+                        <label for="target-hours">Total Target Hours</label>
+                        <input type="number" id="target-hours" min="1" required placeholder="e.g. 100">
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="text-btn" id="cancel-subject-btn">Cancel</button>
+                        <button type="submit" class="primary-btn">Add</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+        
+        <!-- Settings Modal -->
+        <div id="settings-modal" class="modal hidden">
+            <div class="glass-panel">
+                <h2>Settings</h2>
+                <p class="warning-text">Be careful, clearing data cannot be undone without a backup.</p>
+                <div class="settings-actions">
+                    <button id="export-data-btn" class="primary-btn">Export Backup</button>
+                    <button id="clear-data-btn" class="danger-btn">Clear Data</button>
+                    <button type="button" class="text-btn" id="close-settings-btn">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Pomodoro Configuration Modal -->
+        <div id="pomodoro-modal" class="modal hidden">
+            <div class="glass-panel">
+                <h2>Start Focus Block</h2>
+                <form id="pomodoro-form">
+                    <div class="input-group">
+                        <label for="focus-len">Focus Length (mins)</label>
+                        <input type="number" id="focus-len" min="5" value="25" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="break-len">Break Length (mins)</label>
+                        <input type="number" id="break-len" min="1" value="5" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="cycles-count">Number of Cycles</label>
+                        <input type="number" id="cycles-count" min="1" value="4" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="text-btn" id="cancel-pomodoro-btn">Cancel</button>
+                        <button type="submit" class="primary-btn">Start Setup</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Focus Timer Screen -->
+        <div id="timer-screen" class="screen hidden">
+            <div class="timer-container">
+                <h2 id="timer-subject-name">Subject Name</h2>
+                
+                <div class="pomodoro-info">
+                    <span id="pomo-phase" class="phase-tag focus-tag">Focus Phase</span>
+                    <span id="pomo-cycle" class="cycle-text">Cycle 1 of 4</span>
+                </div>
+                
+                <div id="timer-display">25:00</div>
+                
+                <!-- Resume Overlay -->
+                <div id="resume-overlay" class="hidden glass-panel resume-panel">
+                    <p>You stepped away while the session was active.</p>
+                    <p>The system continued tracking time purely mathematically.</p>
+                    <button id="resume-btn" class="primary-btn">Resume Timer UI</button>
+                </div>
+
+                <p id="timer-status">Real absolute time is being tracked.</p>
+                <div class="timer-actions">
+                    <button id="stop-timer-btn" class="danger-btn large-btn">Stop Focus Session</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>
