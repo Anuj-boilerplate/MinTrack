@@ -1,14 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FocusTerm | Academic Tracking</title>
+    <title>MinTrack | Academic Tracking</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
     <div id="app-container">
         <!-- Setup Screen -->
@@ -27,7 +29,7 @@
                     </div>
                     <button type="submit" class="primary-btn">Start Term</button>
                 </form>
-                
+
                 <div class="import-section">
                     <p>Or import existing data:</p>
                     <input type="file" id="import-file" accept=".json" class="hidden">
@@ -42,8 +44,15 @@
                 <div>
                     <h1 id="term-status">Term Active</h1>
                     <p id="term-dates">...</p>
+                    <div class="term-progress-wrapper hidden" id="term-progress-container">
+                        <div class="progress-bar-bg">
+                            <div class="progress-bar-fill" id="term-progress-fill"></div>
+                        </div>
+                        <p class="progress-text" id="term-progress-text">0h / 0h</p>
+                    </div>
                 </div>
                 <div class="header-actions">
+                    <button id="log-session-btn" class="icon-btn" title="Log Past Session">✍</button>
                     <button id="add-subject-btn" class="icon-btn" title="Add Subject">+</button>
                     <button id="settings-btn" class="icon-btn" title="Settings">⚙</button>
                 </div>
@@ -54,7 +63,7 @@
                     <!-- Subject Cards Injected Here -->
                 </div>
             </main>
-            
+
             <div id="term-ended-banner" class="hidden">
                 <h2>Term Ended</h2>
                 <p>You have reached the end of the term. No new targets are required.</p>
@@ -81,7 +90,61 @@
                 </form>
             </div>
         </div>
-        
+
+        <!-- Edit Subject Modal -->
+        <div id="edit-subject-modal" class="modal hidden">
+            <div class="glass-panel">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+                    <h2>Edit Subject</h2>
+                    <button type="button" class="icon-btn danger-icon" id="delete-subject-btn"
+                        title="Delete Subject">🗑</button>
+                </div>
+                <form id="edit-subject-form">
+                    <input type="hidden" id="edit-subject-id">
+                    <div class="input-group">
+                        <label for="edit-subject-name">Subject Name</label>
+                        <input type="text" id="edit-subject-name" required>
+                    </div>
+                    <div class="input-group">
+                        <label for="edit-target-hours">Total Target Hours</label>
+                        <input type="number" id="edit-target-hours" min="1" required>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="text-btn" id="cancel-edit-subject-btn">Cancel</button>
+                        <button type="submit" class="primary-btn">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Manual Log Modal -->
+        <div id="manual-log-modal" class="modal hidden">
+            <div class="glass-panel">
+                <h2>Log Past Session</h2>
+                <form id="manual-log-form">
+                    <div class="input-group">
+                        <label for="manual-log-subject">Subject</label>
+                        <select id="manual-log-subject" class="styled-select" required></select>
+                    </div>
+                    <div style="display:flex; gap:1rem;">
+                        <div class="input-group" style="flex:1;">
+                            <label for="manual-start-time">Start Time</label>
+                            <input type="time" id="manual-start-time" required>
+                        </div>
+                        <div class="input-group" style="flex:1;">
+                            <label for="manual-end-time">End Time</label>
+                            <input type="time" id="manual-end-time" required>
+                        </div>
+                    </div>
+                    <p class="warning-text">Sessions must be at least 15 minutes long to count.</p>
+                    <div class="modal-actions">
+                        <button type="button" class="text-btn" id="cancel-manual-log-btn">Cancel</button>
+                        <button type="submit" class="primary-btn">Log Time</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
         <!-- Settings Modal -->
         <div id="settings-modal" class="modal hidden">
             <div class="glass-panel">
@@ -124,14 +187,21 @@
         <div id="timer-screen" class="screen hidden">
             <div class="timer-container">
                 <h2 id="timer-subject-name">Subject Name</h2>
-                
+
                 <div class="pomodoro-info">
                     <span id="pomo-phase" class="phase-tag focus-tag">Focus Phase</span>
                     <span id="pomo-cycle" class="cycle-text">Cycle 1 of 4</span>
                 </div>
-                
+
+                <div class="timer-daily-progress">
+                    <span class="daily-progress-label">Today's Progress</span>
+                    <div class="progress-bar-bg timer-bar-bg">
+                        <div class="progress-bar-fill" id="timer-daily-fill"></div>
+                    </div>
+                </div>
+
                 <div id="timer-display">25:00</div>
-                
+
                 <!-- Resume Overlay -->
                 <div id="resume-overlay" class="hidden glass-panel resume-panel">
                     <p>You stepped away while the session was active.</p>
@@ -146,7 +216,8 @@
             </div>
         </div>
     </div>
-    
+
     <script src="app.js"></script>
 </body>
+
 </html>

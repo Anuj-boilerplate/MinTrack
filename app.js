@@ -1,5 +1,5 @@
 // State Management
-const STATE_KEY = 'focusterm_state';
+const STATE_KEY = 'mintrack_state';
 
 let state = {
     term: null, // { startDate, endDate }
@@ -17,7 +17,9 @@ const screens = {
 const modals = {
     addSubject: document.getElementById('add-subject-modal'),
     settings: document.getElementById('settings-modal'),
-    pomodoro: document.getElementById('pomodoro-modal')
+    pomodoro: document.getElementById('pomodoro-modal'),
+    editSubject: document.getElementById('edit-subject-modal'),
+    manualLog: document.getElementById('manual-log-modal')
 };
 
 let pendingPomodoroSubjectId = null;
@@ -34,6 +36,16 @@ function getDaysLeft(currentDate, endDateString) {
     const current = getStartOfDay(currentDate);
     const diffTime = end - current;
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+}
+
+function formatHoursToMins(decimalHours) {
+    if (isNaN(decimalHours) || decimalHours < 0) return '0h';
+    const totalMins = Math.round(decimalHours * 60);
+    const h = Math.floor(totalMins / 60);
+    const m = totalMins % 60;
+    if (h > 0 && m > 0) return `${h}h ${m}m`;
+    if (h > 0) return `${h}h`;
+    return `${m}m`;
 }
 
 // Logic Initialization
@@ -62,7 +74,7 @@ function processDailyUpdates() {
     while (loopDate < todayDate) {
         for (let subject of state.subjects) {
             let daysLeft = getDaysLeft(loopDate, state.term.endDate);
-            
+
             // Option B: Skip processing if term is over. 
             if (daysLeft <= 0) {
                 subject.completed_today = 0;
@@ -74,7 +86,7 @@ function processDailyUpdates() {
 
             subject.totalDeficit += missed;
             subject.carryover += Math.min(missed, 1.5);
-            
+
             // Reset daily completed for the new day
             subject.completed_today = 0;
         }
@@ -116,7 +128,7 @@ function renderRouter() {
 function renderHome() {
     const todayDate = getStartOfDay();
     const daysLeft = getDaysLeft(todayDate, state.term.endDate);
-    
+
     const banner = document.getElementById('term-ended-banner');
     if (daysLeft < 0) {
         banner.classList.remove('hidden');
@@ -130,38 +142,59 @@ function renderHome() {
         document.getElementById('add-subject-btn').classList.remove('hidden');
     }
 
+    // Calculate global progress
+    if (state.subjects.length > 0) {
+        document.getElementById('term-progress-container').classList.remove('hidden');
+        let totalTarget = 0, totalValid = 0;
+        state.subjects.forEach(s => {
+            totalTarget += s.targetHours;
+            totalValid += s.validHours;
+        });
+        const globalPct = Math.min((totalValid / Math.max(1, totalTarget)) * 100, 100);
+        document.getElementById('term-progress-fill').style.width = `${globalPct}%`;
+        document.getElementById('term-progress-text').textContent = `${formatHoursToMins(totalValid)} / ${totalTarget}h`;
+    } else {
+        document.getElementById('term-progress-container').classList.add('hidden');
+    }
+
     const grid = document.getElementById('subjects-grid');
     grid.innerHTML = '';
 
     state.subjects.forEach(sub => {
         let dailyReq = 0;
         let todayGoalDisplay = "Term Ended";
-        
+
         if (daysLeft >= 0) {
             dailyReq = (sub.targetHours - sub.validHours) / Math.max(1, daysLeft);
             const totalPressure = dailyReq + sub.carryover;
-            todayGoalDisplay = `${totalPressure.toFixed(1)} hrs`;
+            todayGoalDisplay = totalPressure;
         }
+
+        const pct = Math.min((sub.validHours / sub.targetHours) * 100, 100);
 
         const card = document.createElement('div');
         card.className = 'subject-card';
         card.innerHTML = `
-            <div class="card-title">${sub.name}</div>
+            <div class="card-header">
+                <div class="card-title">${sub.name}</div>
+                <button class="card-edit-btn" data-id="${sub.id}" title="Edit Subject">⚙</button>
+            </div>
             <div class="stat-row">
                 <span class="stat-label">Today's Goal:</span>
-                <span class="stat-value" style="color: var(--accent)">${todayGoalDisplay}</span>
+                <span class="stat-value" style="color: var(--accent)">${typeof todayGoalDisplay === 'number' ? formatHoursToMins(todayGoalDisplay) : todayGoalDisplay}</span>
             </div>
             <div class="stat-row">
                 <span class="stat-label">Progress:</span>
-                <span class="stat-value">${sub.validHours.toFixed(1)} / ${sub.targetHours}h</span>
+                <span class="stat-value">${formatHoursToMins(sub.validHours)} / ${sub.targetHours}h</span>
             </div>
             <div class="stat-row">
                 <span class="stat-label">Today's Focus:</span>
-                <span class="stat-value">${sub.completed_today.toFixed(1)}h</span>
+                <span class="stat-value">${formatHoursToMins(sub.completed_today)}</span>
             </div>
-            <div class="stat-row">
-                <span class="stat-label">Carryover:</span>
-                <span class="stat-value" style="color: var(--danger)">${sub.carryover.toFixed(1)}h</span>
+            <div class="subject-progress-wrapper">
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" style="width: ${pct}%"></div>
+                </div>
             </div>
             <div class="card-actions">
                 ${daysLeft >= 0 ? `<button class="primary-btn play-btn" data-id="${sub.id}">
@@ -174,8 +207,20 @@ function renderHome() {
 
     document.querySelectorAll('.play-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            pendingPomodoroSubjectId = e.target.dataset.id;
+            pendingPomodoroSubjectId = e.currentTarget.dataset.id;
             modals.pomodoro.classList.remove('hidden');
+        });
+    });
+
+    document.querySelectorAll('.card-edit-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const subjectId = e.currentTarget.dataset.id;
+            const sub = state.subjects.find(s => s.id === subjectId);
+            if (!sub) return;
+            document.getElementById('edit-subject-id').value = sub.id;
+            document.getElementById('edit-subject-name').value = sub.name;
+            document.getElementById('edit-target-hours').value = sub.targetHours;
+            modals.editSubject.classList.remove('hidden');
         });
     });
 }
@@ -188,13 +233,13 @@ document.getElementById('cancel-pomodoro-btn').addEventListener('click', () => {
 document.getElementById('pomodoro-form').addEventListener('submit', (e) => {
     e.preventDefault();
     if (!pendingPomodoroSubjectId) return;
-    
+
     startFocusSession(pendingPomodoroSubjectId, {
         focusLength: parseInt(document.getElementById('focus-len').value),
         breakLength: parseInt(document.getElementById('break-len').value),
         cycles: parseInt(document.getElementById('cycles-count').value)
     });
-    
+
     modals.pomodoro.classList.add('hidden');
 });
 
@@ -236,6 +281,99 @@ document.getElementById('subject-form').addEventListener('submit', (e) => {
     renderHome();
 });
 
+// Edit Subject
+document.getElementById('cancel-edit-subject-btn').addEventListener('click', () => {
+    modals.editSubject.classList.add('hidden');
+});
+
+document.getElementById('edit-subject-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const id = document.getElementById('edit-subject-id').value;
+    const sub = state.subjects.find(s => s.id === id);
+    if (!sub) return;
+
+    sub.name = document.getElementById('edit-subject-name').value;
+    const newTarget = parseFloat(document.getElementById('edit-target-hours').value);
+    // Allowing target change, though we could enforce it isn't lower than validHours
+    sub.targetHours = Math.max(newTarget, sub.validHours, 1);
+
+    saveState();
+    modals.editSubject.classList.add('hidden');
+    renderHome();
+});
+
+document.getElementById('delete-subject-btn').addEventListener('click', () => {
+    const id = document.getElementById('edit-subject-id').value;
+    const sub = state.subjects.find(s => s.id === id);
+    if (!sub) return;
+
+    if (confirm(`Are you sure you want to delete ${sub.name}? This will permanently remove its tracking details and hours.`)) {
+        state.subjects = state.subjects.filter(s => s.id !== id);
+        saveState();
+        modals.editSubject.classList.add('hidden');
+        renderHome();
+    }
+});
+
+// Manual Logging
+const btnLog = document.getElementById('log-session-btn');
+if (btnLog) {
+    btnLog.addEventListener('click', () => {
+        if (!state.term) return alert("Please set up a term first.");
+        const select = document.getElementById('manual-log-subject');
+        select.innerHTML = '';
+        state.subjects.forEach(s => {
+            const opt = document.createElement('option');
+            opt.value = s.id;
+            opt.textContent = s.name;
+            select.appendChild(opt);
+        });
+
+        if (state.subjects.length === 0) return alert("Add a subject first.");
+        modals.manualLog.classList.remove('hidden');
+    });
+}
+
+document.getElementById('cancel-manual-log-btn').addEventListener('click', () => {
+    modals.manualLog.classList.add('hidden');
+});
+
+document.getElementById('manual-log-form').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const subjectId = document.getElementById('manual-log-subject').value;
+    const sub = state.subjects.find(s => s.id === subjectId);
+    if (!sub) return;
+
+    const startVal = document.getElementById('manual-start-time').value;
+    const endVal = document.getElementById('manual-end-time').value;
+
+    const [sh, sm] = startVal.split(':').map(Number);
+    const [eh, em] = endVal.split(':').map(Number);
+
+    let startMins = sh * 60 + sm;
+    let endMins = eh * 60 + em;
+
+    if (endMins < startMins) {
+        // Assume crossed midnight into next day, though for simplicity we just add 24h
+        endMins += 24 * 60;
+    }
+
+    const durationMins = endMins - startMins;
+
+    if (durationMins < 15) {
+        return alert("Session was under 15 minutes and will not count towards valid progress.");
+    }
+
+    const durationHours = durationMins / 60;
+    sub.validHours += durationHours;
+    sub.completed_today += durationHours;
+
+    saveState();
+    modals.manualLog.classList.add('hidden');
+    e.target.reset();
+    renderHome();
+});
+
 // Timer Logic
 let timerInterval;
 
@@ -252,7 +390,7 @@ function startFocusSession(subjectId, uiSettings) {
 function startTimerRender() {
     const sub = state.subjects.find(s => s.id === state.activeSession.subjectId);
     document.getElementById('timer-subject-name').textContent = sub.name;
-    
+
     updateTimerDisplay();
     // Only set interval once
     if (timerInterval) clearInterval(timerInterval);
@@ -277,19 +415,43 @@ document.getElementById('resume-btn').addEventListener('click', () => {
 function updateTimerDisplay() {
     if (!state.activeSession) return;
     const elapsedMs = Date.now() - state.activeSession.startTime;
-    
+
     // Truth Layer raw fallback calculations (for simple timers without UI config)
     if (!state.activeSession.ui) {
         const totalSeconds = Math.floor(elapsedMs / 1000);
         const hrs = Math.floor(totalSeconds / 3600);
         const mins = Math.floor((totalSeconds % 3600) / 60);
         const secs = totalSeconds % 60;
-        const timeStr = 
-            String(hrs).padStart(2, '0') + ':' + 
-            String(mins).padStart(2, '0') + ':' + 
+        const timeStr =
+            String(hrs).padStart(2, '0') + ':' +
+            String(mins).padStart(2, '0') + ':' +
             String(secs).padStart(2, '0');
         document.getElementById('timer-display').textContent = timeStr;
         return;
+    }
+
+    // Timer Specific Daily Progress
+    const sub = state.subjects.find(s => s.id === state.activeSession.subjectId);
+    if (sub && state.term) {
+        const daysLeft = getDaysLeft(getStartOfDay(), state.term.endDate);
+        const dailyReq = daysLeft >= 0 ? (sub.targetHours - sub.validHours) / Math.max(1, daysLeft) : 0;
+        const totalPressure = dailyReq + sub.carryover;
+
+        let sessionElapsedHours = elapsedMs / (1000 * 60 * 60);
+        let currentCompleted = sub.completed_today + sessionElapsedHours;
+
+        let progressPct = 0;
+        if (totalPressure > 0) {
+            progressPct = Math.min((currentCompleted / totalPressure) * 100, 100);
+        }
+
+        const fillEl = document.getElementById('timer-daily-fill');
+        fillEl.style.width = `${progressPct}%`;
+        if (progressPct >= 100) {
+            fillEl.style.background = "var(--success)";
+        } else {
+            fillEl.style.background = "var(--accent)";
+        }
     }
 
     // Pomodoro Display Layer
@@ -297,14 +459,14 @@ function updateTimerDisplay() {
     const bMs = state.activeSession.ui.breakLength * 60000;
     const cycleMs = fMs + bMs;
     const totalCycles = state.activeSession.ui.cycles;
-    
+
     const currentCycle = Math.floor(elapsedMs / cycleMs);
     const timeInCycle = elapsedMs % cycleMs;
-    
+
     let phase = "Focus Phase";
     let phaseClass = "focus-tag";
     let countdownMs = fMs - timeInCycle;
-    
+
     const tagEl = document.getElementById('pomo-phase');
     const cycleEl = document.getElementById('pomo-cycle');
 
@@ -313,9 +475,9 @@ function updateTimerDisplay() {
         phaseClass = "break-tag";
         countdownMs = cycleMs - timeInCycle;
     }
-    
+
     let cycleText = `Cycle ${currentCycle + 1} of ${totalCycles}`;
-    
+
     if (currentCycle >= totalCycles) {
         phase = "Target Reached (Overtime)";
         phaseClass = "complete-tag";
@@ -332,8 +494,8 @@ function updateTimerDisplay() {
     const totalSecs = Math.floor(countdownMs / 1000);
     const m = Math.floor(totalSecs / 60);
     const s = totalSecs % 60;
-    
-    document.getElementById('timer-display').textContent = 
+
+    document.getElementById('timer-display').textContent =
         String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
 }
 
@@ -343,7 +505,7 @@ function stopFocusSession() {
     clearInterval(timerInterval);
     const elapsedMs = Date.now() - state.activeSession.startTime;
     const hours = elapsedMs / (1000 * 60 * 60);
-    
+
     // 15 min rule
     if (hours >= 0.25) {
         const sub = state.subjects.find(s => s.id === state.activeSession.subjectId);
@@ -357,7 +519,7 @@ function stopFocusSession() {
     } else {
         alert("Session was under 15 minutes and will not count towards valid progress.");
     }
-    
+
     state.activeSession = null;
     saveState();
     renderRouter();
@@ -382,11 +544,11 @@ document.getElementById('clear-data-btn').addEventListener('click', () => {
 document.getElementById('export-data-btn').addEventListener('click', () => {
     const json = localStorage.getItem(STATE_KEY);
     if (!json) return alert("Nothing to export.");
-    const blob = new Blob([json], {type: "application/json"});
+    const blob = new Blob([json], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `focusterm_backup_${new Date().toISOString().split('T')[0]}.json`;
+    a.download = `mintrack_backup_${new Date().toISOString().split('T')[0]}.json`;
     a.click();
     URL.revokeObjectURL(url);
 });
@@ -403,7 +565,7 @@ document.getElementById('import-file').addEventListener('change', (e) => {
                 localStorage.setItem(STATE_KEY, JSON.stringify(parsed));
                 location.reload();
             }
-        } catch(err) {
+        } catch (err) {
             alert("Invalid backup file.");
         }
     };
