@@ -16,7 +16,7 @@
         <!-- Setup Screen -->
         <div id="setup-screen" class="screen hidden">
             <div class="glass-panel">
-                <h1>Welcome to FocusTerm</h1>
+                <h1>Welcome to MinTrack</h1>
                 <p>Let's set up your academic term.</p>
                 <form id="term-form">
                     <div class="input-group">
@@ -109,6 +109,10 @@
                         <label for="edit-target-hours">Total Target Hours</label>
                         <input type="number" id="edit-target-hours" min="1" required>
                     </div>
+                    <div class="input-group">
+                        <label>Discarded Time</label>
+                        <div id="edit-discarded-time" style="color:var(--text-dim); font-size: 0.9rem;">0h</div>
+                    </div>
                     <div class="modal-actions">
                         <button type="button" class="text-btn" id="cancel-edit-subject-btn">Cancel</button>
                         <button type="submit" class="primary-btn">Save Changes</button>
@@ -154,6 +158,22 @@
                     <button id="export-data-btn" class="primary-btn">Export Backup</button>
                     <button id="clear-data-btn" class="danger-btn">Clear Data</button>
                     <button type="button" class="text-btn" id="close-settings-btn">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Session Review Modal -->
+        <div id="session-review-modal" class="modal hidden">
+            <div class="glass-panel">
+                <h2>Session Complete</h2>
+                <p>Log this session?</p>
+                <div style="margin: 1.5rem 0; text-align: center;">
+                    <strong id="review-subject" style="display:block; font-size:1.2rem; color: var(--accent);">Subject</strong>
+                    <span id="review-duration" style="font-size: 2rem; font-weight: bold;">0h 0m</span>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="danger-btn" id="discard-session-btn">Discard</button>
+                    <button type="button" class="primary-btn" id="save-session-btn">Save</button>
                 </div>
             </div>
         </div>
@@ -217,7 +237,12 @@
         </div>
     </div>
 
-    <script src="app.js"></script>
+    <script src="js/utils.js"></script>
+    <script src="js/state.js"></script>
+    <script src="js/router.js"></script>
+    <script src="js/timer.js"></script>
+    <script src="js/ui.js"></script>
+    <script src="js/main.js"></script>
 </body>
 
 </html>
