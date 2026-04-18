@@ -1,11 +1,41 @@
 // Timer Logic
-let timerInterval;
+let timerWorker = null;
+let audioCtx = null;
+
+function initAudio() {
+    if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+    }
+}
+
+function playBeep(frequency) {
+    if (!audioCtx) return;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+
+    gain.gain.setValueAtTime(0, audioCtx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.5, audioCtx.currentTime + 0.05);
+    gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.5);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.5);
+}
 
 function startFocusSession(subjectId, uiSettings) {
+    initAudio(); // Unlock audio context on user action
     state.activeSession = {
         subjectId: subjectId,
         startTime: Date.now(),
-        ui: uiSettings
+        ui: uiSettings,
+        lastNotifiedPhaseId: null
     };
     saveState();
     renderRouter();
@@ -16,9 +46,14 @@ function startTimerRender() {
     document.getElementById('timer-subject-name').textContent = sub.name;
 
     updateTimerDisplay();
-    // Only set interval once
-    if (timerInterval) clearInterval(timerInterval);
-    timerInterval = setInterval(updateTimerDisplay, 1000);
+
+    if (!timerWorker) {
+        timerWorker = new Worker('js/worker.js');
+        timerWorker.onmessage = () => {
+            updateTimerDisplay();
+        };
+    }
+    timerWorker.postMessage('start');
 }
 
 function checkResumeOverlay() {
@@ -98,10 +133,9 @@ function updateTimerDisplay() {
     let cycleText = `Cycle ${currentCycle + 1} of ${totalCycles}`;
 
     if (currentCycle >= totalCycles) {
-        phase = "Target Reached (Overtime)";
-        phaseClass = "complete-tag";
-        countdownMs = elapsedMs - (totalCycles * cycleMs);
-        cycleText = "Done";
+        // Automatically stop the session and trigger the redirect to home
+        stopFocusSession();
+        return;
     }
 
     tagEl.className = `phase-tag ${phaseClass}`;
@@ -109,6 +143,18 @@ function updateTimerDisplay() {
     cycleEl.textContent = cycleText;
 
     const totalSecs = Math.floor(countdownMs / 1000);
+
+    // Audio Notification Trigger (play exactly 3 seconds before transition)
+    if (totalSecs <= 3 && totalSecs > 0) {
+        const currentPhaseId = currentCycle + "-" + phase;
+        if (state.activeSession.lastNotifiedPhaseId !== currentPhaseId) {
+            state.activeSession.lastNotifiedPhaseId = currentPhaseId;
+            saveState(); // Save to prevent double-play on refresh
+            if (phase === "Focus Phase") playBeep(800); // Higher tone for break incoming
+            else if (phase === "Break Phase") playBeep(400); // Deeper tone for focus incoming
+        }
+    }
+
     const m = Math.floor(totalSecs / 60);
     const s = totalSecs % 60;
 
@@ -122,17 +168,37 @@ let pendingSessionReview = null;
 document.getElementById('stop-timer-btn').addEventListener('click', stopFocusSession);
 
 function stopFocusSession() {
-    clearInterval(timerInterval);
-    const elapsedMs = Date.now() - state.activeSession.startTime;
-    const hours = elapsedMs / (1000 * 60 * 60);
+    if (timerWorker) {
+        timerWorker.postMessage('stop');
+    }
     
+    let rawElapsedMs = Date.now() - state.activeSession.startTime;
+    let netFocusMs = rawElapsedMs;
+
+    if (state.activeSession.ui) {
+        const fMs = state.activeSession.ui.focusLength * 60000;
+        const bMs = state.activeSession.ui.breakLength * 60000;
+        const cycleMs = fMs + bMs;
+        const maxMs = state.activeSession.ui.cycles * cycleMs;
+        
+        // Remove Overtime Limit
+        if (rawElapsedMs > maxMs) rawElapsedMs = maxMs; 
+        
+        // Calculate strict Net Focus Time
+        const fullCycles = Math.floor(rawElapsedMs / cycleMs);
+        const remainder = rawElapsedMs % cycleMs;
+        netFocusMs = (fullCycles * fMs) + Math.min(remainder, fMs);
+    }
+    
+    const hours = netFocusMs / (1000 * 60 * 60);
+
     const subjectId = state.activeSession.subjectId;
-    
+
     // Clear active session immediately so router goes home, but show modal if >= 15
     state.activeSession = null;
     saveState();
     renderRouter();
-    
+
     const sub = state.subjects.find(s => s.id === subjectId);
     if (!sub) return;
 

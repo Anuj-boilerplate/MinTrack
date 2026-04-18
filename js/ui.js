@@ -94,7 +94,7 @@ function renderHome() {
             document.getElementById('edit-subject-id').value = sub.id;
             document.getElementById('edit-subject-name').value = sub.name;
             document.getElementById('edit-target-hours').value = sub.targetHours;
-            
+
             document.getElementById('edit-discarded-time').textContent = formatHoursToMins(sub.discarded_time_total || 0);
 
             modals.editSubject.classList.remove('hidden');
