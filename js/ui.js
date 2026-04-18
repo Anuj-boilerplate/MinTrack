@@ -41,8 +41,7 @@ function renderHome() {
 
         if (daysLeft >= 0) {
             dailyReq = (sub.targetHours - sub.validHours) / Math.max(1, daysLeft);
-            const totalPressure = dailyReq + sub.carryover;
-            todayGoalDisplay = totalPressure;
+            todayGoalDisplay = dailyReq;
         }
 
         const pct = Math.min((sub.validHours / sub.targetHours) * 100, 100);

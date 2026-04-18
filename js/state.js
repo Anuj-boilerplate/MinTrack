@@ -40,22 +40,14 @@ function processDailyUpdates() {
 
     // Run catch-up loop
     while (loopDate < todayDate) {
+        if (getDaysLeft(loopDate, state.term.endDate) < 0) {
+            break; // State Freeze: Stop updating if term is over
+        }
+
         for (let subject of state.subjects) {
             let daysLeft = getDaysLeft(loopDate, state.term.endDate);
 
-            if (daysLeft <= 0) {
-                subject.completed_today = 0;
-                subject.discarded_time_today = 0;
-                continue;
-            }
-
-            let required = (subject.targetHours - subject.validHours) / Math.max(1, daysLeft);
-            let missed = Math.max(0, required - subject.completed_today);
-
-            subject.totalDeficit += missed;
-            subject.carryover += Math.min(missed, 1.5);
-
-            // Reset daily completed
+            // No penalty tracking - simply reset daily progress indicators.
             subject.completed_today = 0;
             subject.discarded_time_today = 0;
         }
@@ -65,9 +57,11 @@ function processDailyUpdates() {
         updated = true;
     }
 
-    if (getStartOfDay(new Date(state.last_updated_date)).getTime() !== todayDate.getTime()) {
-        state.last_updated_date = todayDate.toISOString();
-        updated = true;
+    if (getDaysLeft(todayDate, state.term.endDate) >= 0) {
+        if (getStartOfDay(new Date(state.last_updated_date)).getTime() !== todayDate.getTime()) {
+            state.last_updated_date = todayDate.toISOString();
+            updated = true;
+        }
     }
 
     if (updated) saveState();
