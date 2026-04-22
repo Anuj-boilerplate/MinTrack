@@ -42,21 +42,93 @@
 
         <!-- Home Screen -->
         <div id="home-screen" class="screen hidden">
-            <header>
-                <div>
-                    <h1 id="term-status">Term Active</h1>
-                    <p id="term-dates">...</p>
-                    <div class="term-progress-wrapper hidden" id="term-progress-container">
-                        <div class="progress-bar-bg">
-                            <div class="progress-bar-fill" id="term-progress-fill"></div>
-                        </div>
-                        <p class="progress-text" id="term-progress-text">0h / 0h</p>
+            <header style="flex-direction: column; align-items: stretch;">
+                <!-- Top Row: Titles & Actions -->
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%;">
+                    <div>
+                        <h1 id="term-status">Term Active</h1>
+                        <p id="term-dates">...</p>
+                    </div>
+                    <div class="header-actions">
+                        <button id="theme-toggle-btn" class="icon-btn theme-toggle-svg-btn"
+                            title="Toggle Light/Dark Mode">
+                            <!-- Sun Icon -->
+                            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="5"></circle>
+                                <line x1="12" y1="1" x2="12" y2="3"></line>
+                                <line x1="12" y1="21" x2="12" y2="23"></line>
+                                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                                <line x1="1" y1="12" x2="3" y2="12"></line>
+                                <line x1="21" y1="12" x2="23" y2="12"></line>
+                                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+                            </svg>
+                            <!-- Moon Icon -->
+                            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20"
+                                viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+                            </svg>
+                        </button>
+                        <button id="log-session-btn" class="icon-btn" title="Log Past Session">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                            </svg>
+                        </button>
+                        <button id="add-subject-btn" class="icon-btn" title="Add Subject">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <line x1="12" y1="5" x2="12" y2="19"></line>
+                                <line x1="5" y1="12" x2="19" y2="12"></line>
+                            </svg>
+                        </button>
+                        <button id="settings-btn" class="icon-btn" title="Settings">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="3"></circle>
+                                <path
+                                    d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z">
+                                </path>
+                            </svg>
+                        </button>
                     </div>
                 </div>
-                <div class="header-actions">
-                    <button id="log-session-btn" class="icon-btn" title="Log Past Session">✍</button>
-                    <button id="add-subject-btn" class="icon-btn" title="Add Subject">+</button>
-                    <button id="settings-btn" class="icon-btn" title="Settings">⚙</button>
+
+                <!-- Bottom Row: Progress Bars -->
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                    <div id="daily-progress-container" class="hidden" style="margin-top: 1.5rem; width: 250px;">
+                        <span
+                            style="display: block; font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem; font-weight: 500;">Today's
+                            Target</span>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div class="progress-bar-bg" style="flex: 1;">
+                                <div class="progress-bar-fill" id="daily-progress-fill"></div>
+                            </div>
+                            <p class="progress-text" id="daily-progress-text"
+                                style="min-width: 60px; text-align: right;">0h / 0h</p>
+                        </div>
+                    </div>
+
+                    <div id="term-progress-container" class="hidden" style="margin-top: 1.5rem; width: 250px;">
+                        <span
+                            style="display: block; font-size: 0.875rem; color: var(--text-secondary); margin-bottom: 0.5rem; font-weight: 500; text-align: right;">Term
+                            Progress</span>
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div class="progress-bar-bg" style="flex: 1;">
+                                <div class="progress-bar-fill" id="term-progress-fill"></div>
+                            </div>
+                            <p class="progress-text" id="term-progress-text"
+                                style="min-width: 60px; text-align: right;">0h / 0h</p>
+                        </div>
+                    </div>
                 </div>
             </header>
 
@@ -69,6 +141,40 @@
             <div id="term-ended-banner" class="hidden">
                 <h2>Term Ended</h2>
                 <p>You have reached the end of the term. No new targets are required.</p>
+            </div>
+        </div>
+
+        <!-- Update Modal / Changelog -->
+        <div id="update-modal" class="modal hidden">
+            <div class="glass-panel" style="position: relative;">
+                <button type="button" id="close-update-btn" class="icon-btn"
+                    style="position: absolute; top: 1rem; right: 1rem; width: 32px; height: 32px; border: none;"
+                    title="Close">✕</button>
+                <h2 style="margin-bottom: 0.5rem; color: var(--accent);">What's New in MinTrack</h2>
+                <p style="font-size: 0.9rem; margin-bottom: 1.5rem;">Version 1.1 ✨</p>
+
+                <div style="text-align: left; margin-bottom: 2rem;">
+                    <div style="margin-bottom: 1rem;">
+                        <h3 style="font-size: 1rem; margin-bottom: 0.25rem;">🌓 Introducing Light Mode</h3>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0;">Tap into the sun
+                            with our brand new light mode, complete with fluid animations, and colors that hopefully
+                            don't hurt your eyes</p>
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <h3 style="font-size: 1rem; margin-bottom: 0.25rem;">📐 Today's Target</h3>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0;">A new stat to
+                            make your tracking experience easier! </p>
+                    </div>
+                    <div style="margin-bottom: 1rem;">
+                        <h3 style="font-size: 1rem; margin-bottom: 0.25rem;">🖋️ Premium Icons</h3>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0;">We've abandoned
+                            clunky text emojis. Every action button is now a crisp, responsive vector icon that blends
+                            perfectly with the theme.</p>
+                    </div>
+                </div>
+
+                <button type="button" id="dismiss-update-btn" class="primary-btn" style="width: 100%;">Awesome, let's
+                    go!</button>
             </div>
         </div>
 

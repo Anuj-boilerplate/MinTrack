@@ -1,23 +1,48 @@
 :root {
     --bg-main: #181a1b;
-    /* Dark charcoal */
+    --bg-gradient-1: #242526;
     --bg-glass: rgba(43, 44, 46, 0.85);
-    /* Lighter dark grey for cards */
     --border-glass: rgba(230, 218, 206, 0.08);
-    /* Subtle border */
     --text-primary: #ffffff;
-    /* White for attention */
     --text-secondary: #e6dace;
-    /* Warm beige/tan */
     --accent: #C97A5A;
-    /* Terracotta */
     --accent-hover: #b36345;
     --danger: #9e4a3b;
-    /* Deep rust/brick red */
     --danger-hover: #7d3a2e;
     --success: #10b981;
     --font-main: 'Space Grotesk', sans-serif;
     --font-heading: 'Crimson Pro', serif;
+    
+    --glass-shadow: rgba(0, 0, 0, 0.5);
+    --input-bg: rgba(0, 0, 0, 0.2);
+    --btn-secondary-bg: rgba(255, 255, 255, 0.1);
+    --btn-secondary-hover: rgba(255, 255, 255, 0.2);
+    --modal-overlay: rgba(0, 0, 0, 0.1);
+    --card-shadow-hover: rgba(0, 0, 0, 0.5);
+    --input-border: var(--border-glass);
+    --date-filter: invert(1);
+    --progress-bg: rgba(0, 0, 0, 0.3);
+}
+
+[data-theme="light"] {
+    --bg-main: #F9F7F4;
+    --bg-gradient-1: #FFFFFF;
+    --bg-glass: rgba(255, 255, 255, 0.6); /* Lighter opacity for main cards */
+    --border-glass: #E8E8E8;
+    --text-primary: #1A1A1A;
+    --text-secondary: #666666;
+    --accent: #D97F5F;
+    --accent-hover: #b36345;
+    
+    --glass-shadow: rgba(0, 0, 0, 0.05); /* Subtle shadows for light backgrounds */
+    --input-bg: rgba(255,255,255,0.7);
+    --btn-secondary-bg: rgba(0, 0, 0, 0.05);
+    --btn-secondary-hover: rgba(0, 0, 0, 0.1);
+    --modal-overlay: rgba(255, 255, 255, 0.5);
+    --card-shadow-hover: rgba(0, 0, 0, 0.12);
+    --input-border: #D0D0D0; /* Subtle borders for inputs */
+    --date-filter: none;
+    --progress-bg: #E8E8E8;
 }
 
 * {
@@ -34,8 +59,9 @@ body {
     min-height: 100vh;
     display: flex;
     justify-content: center;
-    background-image: radial-gradient(circle at top right, #242526, #181a1b 50%);
+    background-image: radial-gradient(circle at top right, var(--bg-gradient-1), var(--bg-main) 50%);
     background-attachment: fixed;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 #app-container {
@@ -57,7 +83,7 @@ body {
     border: 1px solid var(--border-glass);
     border-radius: 16px;
     padding: 2rem;
-    box-shadow: 0 4px 30px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 4px 30px var(--glass-shadow);
 }
 
 /* Typography */
@@ -112,14 +138,14 @@ button {
 }
 
 .secondary-btn {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--btn-secondary-bg);
     color: var(--text-primary);
     padding: 0.75rem 1.5rem;
     border: 1px solid var(--border-glass);
 }
 
 .secondary-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
+    background: var(--btn-secondary-hover);
 }
 
 .danger-btn {
@@ -133,7 +159,7 @@ button {
 }
 
 .icon-btn {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--btn-secondary-bg);
     color: var(--text-primary);
     width: 40px;
     height: 40px;
@@ -171,8 +197,8 @@ input {
     width: 100%;
     padding: 0.75rem;
     border-radius: 8px;
-    border: 1px solid var(--border-glass);
-    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--input-border);
+    background: var(--input-bg);
     color: var(--text-primary);
     font-family: var(--font-main);
     font-size: 1rem;
@@ -184,7 +210,7 @@ input:focus {
 }
 
 input[type="date"]::-webkit-calendar-picker-indicator {
-    filter: invert(1);
+    filter: var(--date-filter);
 }
 
 .input-group {
@@ -229,7 +255,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .modal {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.1);
+    background: var(--modal-overlay);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     display: flex;
@@ -272,7 +298,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .subject-card:hover {
     filter: brightness(1.1);
     transform: translateY(-2px);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 10px 25px var(--card-shadow-hover);
 }
 
 .card-header {
@@ -428,7 +454,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 }
 
 .resume-panel {
-    background: rgba(20, 20, 20, 0.8);
+    background: var(--bg-glass);
     position: absolute;
     inset: 0;
     display: flex;
@@ -452,7 +478,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .progress-bar-bg {
     flex: 1;
     height: 8px;
-    background: rgba(0, 0, 0, 0.3);
+    background: var(--progress-bg);
     border-radius: 4px;
     overflow: hidden;
 }
@@ -475,8 +501,8 @@ input[type="date"]::-webkit-calendar-picker-indicator {
     width: 100%;
     padding: 0.75rem;
     border-radius: 8px;
-    border: 1px solid var(--border-glass);
-    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--input-border);
+    background: var(--input-bg);
     color: var(--text-primary);
     font-family: var(--font-main);
     font-size: 1rem;
@@ -515,4 +541,109 @@ input[type="date"]::-webkit-calendar-picker-indicator {
 .timer-bar-bg {
     height: 12px;
     border-radius: 6px;
+}
+
+/* Theme Toggle SVG Animation */
+.theme-toggle-svg-btn {
+    position: relative;
+    overflow: hidden;
+}
+
+.theme-toggle-svg-btn svg {
+    position: absolute;
+    transition: transform 0.5s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.5s ease;
+}
+
+/* Default to Dark Mode: Moon is visible, Sun is hidden above */
+.theme-toggle-svg-btn .sun-icon {
+    transform: translateY(-200%) rotate(45deg);
+    opacity: 0;
+}
+.theme-toggle-svg-btn .moon-icon {
+    transform: translateY(0) rotate(0);
+    opacity: 1;
+}
+
+/* Light Mode: Sun drops in, Moon drops down */
+[data-theme="light"] .theme-toggle-svg-btn .sun-icon {
+    transform: translateY(0) rotate(0);
+    opacity: 1;
+}
+[data-theme="light"] .theme-toggle-svg-btn .moon-icon {
+    transform: translateY(200%) rotate(-45deg);
+    opacity: 0;
+}
+
+/* Ethereal View Transitions */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+/* Fast fade for the outgoing view underneath so it dissolves as wave hits */
+html.switching-to-light::view-transition-old(root),
+html.switching-to-dark::view-transition-old(root) {
+    animation: ethereal-fade-old 1.5s ease forwards;
+}
+
+/* Transition to Light (Expands from Bottom Left) */
+html.switching-to-light::view-transition-new(root) {
+    animation: ethereal-mask-wave-light 1.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    z-index: 2;
+    -webkit-mask-image: radial-gradient(circle at bottom left, black 40%, rgba(0,0,0,0.5) 70%, transparent 100%);
+    mask-image: radial-gradient(circle at bottom left, black 40%, rgba(0,0,0,0.5) 70%, transparent 100%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: bottom left;
+    mask-position: bottom left;
+}
+
+/* Transition to Dark (Expands from Top Right) */
+html.switching-to-dark::view-transition-new(root) {
+    animation: ethereal-mask-wave-dark 1.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    z-index: 2;
+    -webkit-mask-image: radial-gradient(circle at top right, black 40%, rgba(0,0,0,0.5) 70%, transparent 100%);
+    mask-image: radial-gradient(circle at top right, black 40%, rgba(0,0,0,0.5) 70%, transparent 100%);
+    -webkit-mask-repeat: no-repeat;
+    mask-repeat: no-repeat;
+    -webkit-mask-position: top right;
+    mask-position: top right;
+}
+
+@keyframes ethereal-mask-wave-light {
+    0% {
+        -webkit-mask-size: 0vmax 0vmax;
+        mask-size: 0vmax 0vmax;
+        opacity: 0;
+    }
+    15% {
+        opacity: 1; /* Soft initial fade */
+    }
+    100% {
+        -webkit-mask-size: 150vmax 150vmax;
+        mask-size: 150vmax 150vmax;
+        opacity: 1;
+    }
+}
+
+@keyframes ethereal-mask-wave-dark {
+    0% {
+        -webkit-mask-size: 0vmax 0vmax;
+        mask-size: 0vmax 0vmax;
+        opacity: 0;
+    }
+    15% {
+        opacity: 1;
+    }
+    100% {
+        -webkit-mask-size: 150vmax 150vmax;
+        mask-size: 150vmax 150vmax;
+        opacity: 1;
+    }
+}
+
+@keyframes ethereal-fade-old {
+    0% { opacity: 1; filter: blur(0px); }
+    100% { opacity: 0; filter: blur(8px); }
 }

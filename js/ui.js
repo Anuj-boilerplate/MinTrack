@@ -35,14 +35,20 @@ function renderHome() {
     const grid = document.getElementById('subjects-grid');
     grid.innerHTML = '';
 
+    let totalDailyReq = 0;
+    let totalCompletedToday = 0;
+
     state.subjects.forEach(sub => {
         let dailyReq = 0;
         let todayGoalDisplay = "Term Ended";
 
         if (daysLeft >= 0) {
-            dailyReq = (sub.targetHours - sub.validHours) / Math.max(1, daysLeft);
+            dailyReq = Math.max(0, (sub.targetHours - sub.validHours) / Math.max(1, daysLeft));
             todayGoalDisplay = dailyReq;
+            totalDailyReq += dailyReq;
         }
+
+        totalCompletedToday += sub.completed_today;
 
         const pct = Math.min((sub.validHours / sub.targetHours) * 100, 100);
 
@@ -78,6 +84,16 @@ function renderHome() {
         `;
         grid.appendChild(card);
     });
+
+    if (daysLeft >= 0 && state.subjects.length > 0) {
+        document.getElementById('daily-progress-container').classList.remove('hidden');
+        const safeDailyReq = Math.max(0.01, totalDailyReq);
+        const dailyPct = totalDailyReq === 0 ? 100 : Math.min((totalCompletedToday / safeDailyReq) * 100, 100);
+        document.getElementById('daily-progress-fill').style.width = `${dailyPct}%`;
+        document.getElementById('daily-progress-text').textContent = `${formatHoursToMins(totalCompletedToday)} / ${formatHoursToMins(totalDailyReq)}`;
+    } else {
+        document.getElementById('daily-progress-container').classList.add('hidden');
+    }
 
     document.querySelectorAll('.play-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
