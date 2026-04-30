@@ -11,7 +11,12 @@ export default function Auth() {
     setLoading(true)
     setStatus({ type: '', message: '' })
     
-    const { error } = await supabase.auth.signInWithOtp({ email })
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: window.location.origin,
+      },
+    })
     
     if (error) {
       setStatus({ type: 'error', message: error.error_description || error.message })
