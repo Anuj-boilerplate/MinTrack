@@ -1,5 +1,5 @@
 import { useCallback, useState, useEffect } from 'react';
-import { supabase } from './lib/supabaseClient';
+import { supabase, supabaseConfigError } from './lib/supabaseClient';
 import Auth from './components/Auth';
 import { StateProvider, useStateContext } from './contexts/StateContext';
 import { useTimer } from './hooks/useTimer';
@@ -226,6 +226,8 @@ export default function App() {
   const [session, setSession] = useState(null);
 
   useEffect(() => {
+    if (supabaseConfigError || !supabase) return;
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
     });
@@ -238,6 +240,25 @@ export default function App() {
     const savedTheme = localStorage.getItem('theme') || 'dark';
     document.documentElement.setAttribute('data-theme', savedTheme);
   }, []);
+
+  if (supabaseConfigError) {
+    return (
+      <div className="min-h-screen w-full flex items-center justify-center p-4">
+        <div className="glass-panel w-full max-w-[560px]">
+          <h1 className="text-3xl font-bold mb-3 font-heading text-text-primary tracking-tight">MinTrack needs configuration</h1>
+          <p className="text-text-secondary mb-6">
+            {supabaseConfigError}
+          </p>
+          <div className="text-sm text-text-secondary space-y-2">
+            <p>Add these in Netlify under Site configuration → Environment variables:</p>
+            <p><code>VITE_SUPABASE_URL</code></p>
+            <p><code>VITE_SUPABASE_ANON_KEY</code></p>
+            <p>Then trigger a fresh deploy.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (!session) {
     return <Auth />;
