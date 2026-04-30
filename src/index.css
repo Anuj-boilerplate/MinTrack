@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+      --bg-main: #181a1b;
+      --bg-gradient-1: #242526;
+      --bg-glass: rgba(43, 44, 46, 0.85);
+      --border-glass: rgba(230, 218, 206, 0.08);
+      --text-primary: #ffffff;
+      --text-secondary: #e6dace;
+      --accent: #C97A5A;
+      --accent-hover: #b36345;
+      --danger: #9e4a3b;
+      --danger-hover: #7d3a2e;
+      --success: #10b981;
+      
+      --glass-shadow: rgba(0, 0, 0, 0.5);
+      --input-bg: rgba(0, 0, 0, 0.2);
+      --btn-secondary-bg: rgba(255, 255, 255, 0.1);
+      --btn-secondary-hover: rgba(255, 255, 255, 0.2);
+      --modal-overlay: rgba(0, 0, 0, 0.1);
+      --card-shadow-hover: rgba(0, 0, 0, 0.5);
+      --input-border: var(--border-glass);
+      --date-filter: invert(1);
+      --progress-bg: rgba(0, 0, 0, 0.3);
+  }
+
+  [data-theme="light"] {
+      --bg-main: #F9F7F4;
+      --bg-gradient-1: #FFFFFF;
+      --bg-glass: rgba(255, 255, 255, 0.6);
+      --border-glass: #E8E8E8;
+      --text-primary: #1A1A1A;
+      --text-secondary: #666666;
+      --accent: #D97F5F;
+      --accent-hover: #b36345;
+      
+      --glass-shadow: rgba(0, 0, 0, 0.05);
+      --input-bg: rgba(255,255,255,0.7);
+      --btn-secondary-bg: rgba(0, 0, 0, 0.05);
+      --btn-secondary-hover: rgba(0, 0, 0, 0.1);
+      --modal-overlay: rgba(255, 255, 255, 0.5);
+      --card-shadow-hover: rgba(0, 0, 0, 0.12);
+      --input-border: #D0D0D0;
+      --date-filter: none;
+      --progress-bg: #E8E8E8;
+  }
+
+  body {
+      @apply bg-background-main text-text-primary font-main min-h-screen flex justify-center bg-gradient-radial bg-fixed transition-colors duration-500 ease-in-out;
+  }
+
+  #root {
+      @apply w-full flex justify-center;
+  }
+
+  /* Date Input Filter */
+  input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: var(--date-filter);
+  }
+}
+
+@layer components {
+  .glass-panel {
+      @apply bg-background-glass backdrop-blur-2xl border border-border-glass rounded-2xl p-8 shadow-glass transition-colors duration-500 ease-in-out;
+  }
+
+  .primary-btn {
+      @apply bg-brand-accent text-white py-3 px-6 rounded-lg font-medium shadow-btn hover:-translate-y-[1px] hover:bg-brand-accentHover transition-all;
+  }
+
+  .secondary-btn {
+      @apply bg-btn-secondary text-text-primary py-3 px-6 rounded-lg font-medium border border-border-glass hover:bg-btn-secondaryHover transition-all;
+  }
+
+  .danger-btn {
+      @apply bg-brand-danger text-white py-3 px-6 rounded-lg font-medium hover:bg-brand-dangerHover transition-all;
+  }
+
+  .text-btn {
+      @apply bg-transparent text-text-secondary py-3 px-6 rounded-lg font-medium hover:text-text-primary transition-colors;
+  }
+
+  .icon-btn {
+      @apply bg-btn-secondary text-text-primary w-10 h-10 rounded-full flex items-center justify-center text-xl border border-border-glass hover:bg-brand-accent hover:text-white hover:border-brand-accent transition-all flex-shrink-0;
+  }
+
+  .input-field {
+      @apply w-full p-3 rounded-lg border border-border-input bg-[var(--input-bg)] text-text-primary font-main text-base focus:border-brand-accent focus:outline-none transition-colors duration-500;
+  }
+
+  /* Theme Toggle SVG Animation */
+  .theme-toggle-svg-btn {
+      @apply relative overflow-hidden;
+  }
+
+  .theme-toggle-svg-btn svg {
+      @apply absolute transition-all duration-500 ease-in-out;
+  }
+
+  /* Default to Dark Mode: Moon is visible, Sun is hidden above */
+  .theme-toggle-svg-btn .sun-icon {
+      transform: translateY(-200%) rotate(45deg);
+      opacity: 0;
+  }
+  .theme-toggle-svg-btn .moon-icon {
+      transform: translateY(0) rotate(0);
+      opacity: 1;
+  }
+
+  /* Light Mode: Sun drops in, Moon drops down */
+  [data-theme="light"] .theme-toggle-svg-btn .sun-icon {
+      transform: translateY(0) rotate(0);
+      opacity: 1;
+  }
+  [data-theme="light"] .theme-toggle-svg-btn .moon-icon {
+      transform: translateY(200%) rotate(-45deg);
+      opacity: 0;
+  }
+}
