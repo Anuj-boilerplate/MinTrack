@@ -48,3 +48,13 @@ export async function processSyncQueue() {
     }
   }
 }
+
+export async function removeSessionsForSubject(subjectId) {
+  const keys = await sessionQueue.keys();
+  for (const key of keys) {
+    const session = await sessionQueue.getItem(key);
+    if (session && session.subject_id === subjectId) {
+      await sessionQueue.removeItem(key);
+    }
+  }
+}

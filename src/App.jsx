@@ -3,7 +3,7 @@ import { supabase, supabaseConfigError } from './lib/supabaseClient';
 import Auth from './components/Auth';
 import { StateProvider, useStateContext } from './contexts/StateContext';
 import { useTimer } from './hooks/useTimer';
-import { addSessionToQueue, processSyncQueue } from './lib/syncQueue';
+import { addSessionToQueue, processSyncQueue, removeSessionsForSubject } from './lib/syncQueue';
 
 import SetupScreen from './components/screens/SetupScreen';
 import HomeScreen from './components/screens/HomeScreen';
@@ -124,12 +124,29 @@ function AppContent() {
 
   const handleDeleteSubject = async (id) => {
     if (confirm("Are you sure you want to delete this subject?")) {
+      const subjectName = state.subjects.find(s => s.id === id)?.name;
       updateState(prev => ({ ...prev, subjects: prev.subjects.filter(s => s.id !== id) }));
       setActiveModal(null);
 
       // Sync to Supabase
       if (userId) {
-        await supabase.from('subjects').delete().eq('id', id);
+        try {
+          // 1. Clean up the offline sync queue for this subject
+          await removeSessionsForSubject(id);
+
+          // 2. Delete sessions from Supabase first (FK constraint)
+          const { error: sessionError } = await supabase.from('sessions').delete().eq('subject_id', id);
+          if (sessionError) throw sessionError;
+
+          // 3. Delete the subject itself
+          const { error: subjectError } = await supabase.from('subjects').delete().eq('id', id);
+          if (subjectError) throw subjectError;
+
+          console.log(`Successfully deleted subject "${subjectName}" and its sessions.`);
+        } catch (err) {
+          console.error(`Failed to delete subject "${subjectName}":`, err);
+          alert(`Could not delete subject from cloud: ${err.message}. It might reappear on reload.`);
+        }
       }
     }
   };
