@@ -64,11 +64,11 @@ export default function SettingsModal({ onClose }) {
   };
 
   return (
-    <div id="settings-modal" className="fixed inset-0 bg-background-overlay backdrop-blur-md flex justify-center items-center z-50 p-4">
-      <div className="glass-panel w-full max-w-[400px] animate-[slideUp_0.3s_cubic-bezier(0.16,1,0.3,1)]">
-        <h2 className="text-2xl font-semibold mb-6 text-text-primary">Settings</h2>
+    <div id="settings-modal" className="modal-backdrop">
+      <div className="modal-pane iridescent-border">
+        <h2 className="text-medium mb-9 text-text-primary">Settings</h2>
 
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
           <button id="export-data-btn" className="secondary-btn w-full text-left" onClick={handleExport}>
             Export Backup
           </button>
@@ -80,7 +80,7 @@ export default function SettingsModal({ onClose }) {
           </button>
         </div>
 
-        <div className="flex justify-end mt-8">
+        <div className="flex justify-end mt-12">
           <button id="close-settings-btn" className="primary-btn" onClick={onClose}>Done</button>
         </div>
 

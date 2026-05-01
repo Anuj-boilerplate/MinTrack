@@ -35,7 +35,7 @@ export default {
       },
       fontFamily: {
         main: ['Space Grotesk', 'sans-serif'],
-        heading: ['Crimson Pro', 'serif']
+        heading: ['Space Grotesk', 'sans-serif']
       },
       boxShadow: {
         glass: '0 4px 30px var(--glass-shadow)',

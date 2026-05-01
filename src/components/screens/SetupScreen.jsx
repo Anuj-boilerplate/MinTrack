@@ -49,11 +49,11 @@ export default function SetupScreen() {
   return (
     <div id="setup-screen" className="animate-[fadeIn_0.4s_ease-out]">
       <div className="glass-panel max-w-[400px] mx-auto text-center">
-        <h1 className="text-4xl font-bold mb-2 tracking-tight">Welcome to MinTrack</h1>
-        <p className="text-text-secondary mb-4">Let's set up your academic term.</p>
+        <h1 className="text-4xl font-bold mb-3 tracking-tight">Welcome to MinTrack</h1>
+        <p className="text-text-secondary mb-6">Let's set up your academic term.</p>
         <form id="term-form" onSubmit={handleStartTerm} className="text-left">
-          <div className="mb-6">
-            <label htmlFor="term-start" className="block text-sm text-text-secondary mb-2">Start Date</label>
+          <div className="mb-9">
+            <label htmlFor="term-start" className="block text-sm text-text-secondary mb-3">Start Date</label>
             <input 
               type="date" 
               id="term-start" 
@@ -63,8 +63,8 @@ export default function SetupScreen() {
               onChange={(e) => setStartDate(e.target.value)}
             />
           </div>
-          <div className="mb-6">
-            <label htmlFor="term-end" className="block text-sm text-text-secondary mb-2">End Date</label>
+          <div className="mb-9">
+            <label htmlFor="term-end" className="block text-sm text-text-secondary mb-3">End Date</label>
             <input 
               type="date" 
               id="term-end" 
@@ -77,8 +77,8 @@ export default function SetupScreen() {
           <button type="submit" className="primary-btn w-full">Start Term</button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-border-glass">
-          <p className="text-text-secondary mb-4">Or import existing data:</p>
+        <div className="mt-12 pt-12 border-t border-border-glass">
+          <p className="text-text-secondary mb-6">Or import existing data:</p>
           <input 
             type="file" 
             id="import-file" 

@@ -179,7 +179,7 @@ function AppContent() {
   const activeSubjectData = activeModal?.subjectId ? state.subjects.find(s => s.id === activeModal.subjectId) : null;
 
   return (
-    <div className="w-full max-w-[800px] p-8 relative">
+    <div className={`app-shell ${currentModal ? 'modal-active' : ''}`}>
       {!state.term ? (
         <SetupScreen />
       ) : state.activeSession ? (
@@ -247,13 +247,13 @@ export default function App() {
 
   if (supabaseConfigError) {
     return (
-      <div className="min-h-screen w-full flex items-center justify-center p-4">
+      <div className="min-h-screen w-full flex items-center justify-center p-8">
         <div className="glass-panel w-full max-w-[560px]">
-          <h1 className="text-3xl font-bold mb-3 font-heading text-text-primary tracking-tight">MinTrack needs configuration</h1>
-          <p className="text-text-secondary mb-6">
+          <h1 className="text-display mb-5 text-text-primary tracking-tight">MinTrack needs configuration</h1>
+          <p className="text-text-secondary mb-9">
             {supabaseConfigError}
           </p>
-          <div className="text-sm text-text-secondary space-y-2">
+          <div className="text-sm text-text-secondary space-y-3">
             <p>Add these in Netlify under Site configuration → Environment variables:</p>
             <p><code>VITE_SUPABASE_URL</code></p>
             <p><code>VITE_SUPABASE_ANON_KEY</code></p>
