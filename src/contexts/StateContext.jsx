@@ -140,6 +140,8 @@ export const StateProvider = ({ children, session }) => {
         const localSub = patchedState.subjects.find(ls => ls.id === dbSub.id) || {};
         return {
           ...dbSub,
+          // Safety net: Use the higher value of valid_hours between DB and local storage
+          valid_hours: Math.max(dbSub.valid_hours || 0, localSub.valid_hours || 0),
           completed_today: localSub.completed_today || 0,
           discarded_time_today: localSub.discarded_time_today || 0,
           discarded_time_total: localSub.discarded_time_total || 0

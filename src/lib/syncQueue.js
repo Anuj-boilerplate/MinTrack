@@ -35,7 +35,12 @@ export async function processSyncQueue() {
     });
 
     if (!error) {
-      // Successfully synced, remove from queue
+      // Also sync valid_hours back to the subjects table (catches offline saves)
+      if (!session.is_discarded && session.new_valid_hours !== undefined) {
+        await supabase.from('subjects')
+          .update({ valid_hours: session.new_valid_hours })
+          .eq('id', session.subject_id);
+      }
       await sessionQueue.removeItem(key);
     } else {
       console.error('Failed to sync session', error);

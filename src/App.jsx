@@ -137,30 +137,58 @@ function AppContent() {
   const handleManualLog = async (subjectId, startStr, endStr, durationMins) => {
     const hours = durationMins / 60;
     const range = getSessionRangeFromTimes(startStr, endStr);
+    const sub = state.subjects.find((s) => s.id === subjectId);
+    const newValidHours = (sub?.valid_hours || 0) + hours;
+
     updateState(prev => ({
       ...prev,
-      subjects: prev.subjects.map(s => s.id === subjectId ? { ...s, valid_hours: (s.valid_hours || 0) + hours, completed_today: (s.completed_today || 0) + hours } : s)
+      subjects: prev.subjects.map(s => s.id === subjectId
+        ? { ...s, valid_hours: newValidHours, completed_today: (s.completed_today || 0) + hours }
+        : s)
     }));
     setActiveModal(null);
 
-    // Offline queue
     await addSessionToQueue({
       subject_id: subjectId,
       start_time: range?.start.toISOString() || new Date().toISOString(),
       end_time: range?.end.toISOString() || new Date().toISOString(),
       duration_minutes: durationMins,
-      is_discarded: false
+      is_discarded: false,
+      new_valid_hours: newValidHours
     });
+
+    // Persist valid_hours to Supabase immediately so reloads don't reset progress
+    if (userId) {
+      await supabase.from('subjects').update({ valid_hours: newValidHours }).eq('id', subjectId);
+    }
   };
 
   const handleSaveSession = async (data) => {
+    const sub = state.subjects.find((s) => s.id === data.subjectId);
+    const newValidHours = (sub?.valid_hours || 0) + data.hours;
+
     updateState(prev => ({
       ...prev,
-      subjects: prev.subjects.map(s => s.id === data.subjectId ? { ...s, valid_hours: (s.valid_hours || 0) + data.hours, completed_today: (s.completed_today || 0) + data.hours } : s)
+      subjects: prev.subjects.map(s => s.id === data.subjectId
+        ? { ...s, valid_hours: newValidHours, completed_today: (s.completed_today || 0) + data.hours }
+        : s)
     }));
     setActiveModal(null);
     setSessionReviewData(null);
-    await addSessionToQueue({ subject_id: data.subjectId, start_time: data.startTime, end_time: new Date().toISOString(), duration_minutes: data.hours * 60, is_discarded: false });
+
+    await addSessionToQueue({
+      subject_id: data.subjectId,
+      start_time: data.startTime,
+      end_time: new Date().toISOString(),
+      duration_minutes: data.hours * 60,
+      is_discarded: false,
+      new_valid_hours: newValidHours
+    });
+
+    // Persist valid_hours to Supabase immediately so reloads don't reset progress
+    if (userId) {
+      await supabase.from('subjects').update({ valid_hours: newValidHours }).eq('id', data.subjectId);
+    }
   };
 
   const handleDiscardSession = async (data) => {

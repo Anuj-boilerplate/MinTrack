@@ -29,18 +29,20 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
   state.subjects.forEach((sub) => {
     const targetHours = parseFloat(sub.target_hours || sub.targetHours) || 0;
     const validHours = parseFloat(sub.valid_hours || sub.validHours) || 0;
+    const completedToday = sub.completed_today || 0;
     totalTarget += targetHours;
     totalValid += validHours;
-
+    
     if (daysLeft >= 0) {
-      const dailyReq = (targetHours - validHours) / Math.max(1, daysLeft);
-      const totalPressure = dailyReq + (sub.carryover || 0);
-      dailyTargetRequired += totalPressure;
-      dailyTargetCompleted += (sub.completed_today || 0);
+      // Snapshot the goal at the start of the day:
+      // todayGoal = (targetHours - (validHours - completedToday)) / daysLeft
+      const todayGoal = Math.max(0, (targetHours - validHours + completedToday) / Math.max(1, daysLeft) + (sub.carryover || 0));
+      dailyTargetRequired += todayGoal;
+      dailyTargetCompleted += completedToday;
     }
   });
 
-  const termPct = Math.min((totalValid / Math.max(1, totalTarget)) * 100, 100) || 0;
+  const termPct = totalTarget > 0 ? Math.min((totalValid / totalTarget) * 100, 100) : 0;
   const dailyPct = dailyTargetRequired > 0 ? Math.min((dailyTargetCompleted / dailyTargetRequired) * 100, 100) : 0;
   const selectedSubject = state.subjects.find((subject) => subject.id === selectedSubjectId) ?? null;
 
@@ -49,21 +51,19 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
     const targetHours = parseFloat(selectedSubject.target_hours || selectedSubject.targetHours) || 0;
     const validHours = parseFloat(selectedSubject.valid_hours || selectedSubject.validHours) || 0;
     const todayFocus = selectedSubject.completed_today || 0;
+    // Lock the goal at the start of the day using: validAtDayStart = validHours - completedToday
+    // todayGoal = (targetHours - validAtDayStart) / daysLeft  — fixed for the entire day
     const todayGoal = daysLeft >= 0
-      ? Math.max(0, ((targetHours - validHours) / Math.max(1, daysLeft)) + (selectedSubject.carryover || 0))
+      ? Math.max(0, (targetHours - validHours + todayFocus) / Math.max(1, daysLeft) + (selectedSubject.carryover || 0))
       : 0;
+    const remainingToday = Math.max(0, todayGoal - todayFocus);
 
     selectedMetrics = {
-      progressPct: Math.min((validHours / Math.max(1, targetHours)) * 100, 100) || 0,
-      streak: todayFocus > 0 ? Math.max(1, Math.round((validHours / Math.max(1, targetHours)) * 7)) : 0,
-      totalTime: formatHoursToMins(validHours),
-      lastSession: todayFocus > 0 ? 'Today' : 'Quiet today',
+      progressPct: targetHours > 0 ? Math.min((validHours / targetHours) * 100, 100) : 0,
+      todayFocus: formatHoursToMins(todayFocus),
       todayGoal: formatHoursToMins(todayGoal),
-      rows: [
-        ['Today focused', formatHoursToMins(todayFocus)],
-        ['Remaining target', formatHoursToMins(Math.max(0, targetHours - validHours))],
-        ['Discarded time', formatHoursToMins(selectedSubject.discarded_time_total || 0)],
-      ],
+      totalTime: formatHoursToMins(validHours),
+      discardedToday: formatHoursToMins(selectedSubject.discarded_time_today || 0),
     };
   }
 
@@ -156,15 +156,8 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
             {state.subjects.map((sub) => {
               const targetHours = parseFloat(sub.target_hours || sub.targetHours) || 0;
               const validHours = parseFloat(sub.valid_hours || sub.validHours) || 0;
-              const pct = Math.min((validHours / Math.max(1, targetHours)) * 100, 100) || 0;
-              const todayGoal = daysLeft >= 0
-                ? Math.max(0, ((targetHours - validHours) / Math.max(1, daysLeft)) + (sub.carryover || 0))
-                : 0;
-              const statLine = isTermEnded
-                ? `${formatHoursToMins(validHours)} completed this term`
-                : todayGoal > 0
-                  ? `${formatHoursToMins(todayGoal)} left today`
-                  : `${formatHoursToMins(sub.completed_today || 0)} focused today`;
+              const todayFocus = sub.completed_today || 0;
+              const pct = targetHours > 0 ? Math.min((validHours / targetHours) * 100, 100) : 0;
 
               return (
                 <article
@@ -198,7 +191,6 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
                     <div className="progress-track">
                       <div className="progress-fill" style={{ width: `${pct}%` }}></div>
                     </div>
-                    <p className="text-small text-text-secondary mt-6">{statLine}</p>
                   </div>
 
                   <div className="mt-auto pt-12">
@@ -227,7 +219,6 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
                     <p className="text-tiny text-text-muted uppercase tracking-[0.22em] mb-5">Selected subject</p>
                     <h2 className="text-display">{selectedSubject.name}</h2>
                   </div>
-                  <p className="text-small text-accent">{selectedMetrics.progressPct.toFixed(0)}% complete</p>
                 </div>
               </section>
 
@@ -235,20 +226,20 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
 
               <section className="detail-section stats-grid">
                 <div className="stat-tile">
-                  <span className="stat-label">Streak</span>
-                  <strong className="stat-value">{selectedMetrics.streak} days</strong>
+                  <span className="stat-label">Today&apos;s Focus</span>
+                  <strong className="stat-value">{selectedMetrics.todayFocus}</strong>
                 </div>
                 <div className="stat-tile">
-                  <span className="stat-label">Total time</span>
+                  <span className="stat-label">Today&apos;s Goal</span>
+                  <strong className="stat-value">{selectedMetrics.todayGoal}</strong>
+                </div>
+                <div className="stat-tile">
+                  <span className="stat-label">Total Time Completed</span>
                   <strong className="stat-value">{selectedMetrics.totalTime}</strong>
                 </div>
                 <div className="stat-tile">
-                  <span className="stat-label">Last session</span>
-                  <strong className="stat-value">{selectedMetrics.lastSession}</strong>
-                </div>
-                <div className="stat-tile">
-                  <span className="stat-label">Today&apos;s goal</span>
-                  <strong className="stat-value">{selectedMetrics.todayGoal}</strong>
+                  <span className="stat-label">Discarded Today</span>
+                  <strong className="stat-value">{selectedMetrics.discardedToday}</strong>
                 </div>
               </section>
 
@@ -256,37 +247,44 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
 
               <section className="detail-section">
                 <div className="flex items-center justify-between gap-4 mb-9">
-                  <h3 className="text-medium text-text-primary">Weekly heatmap</h3>
-                  <p className="text-tiny text-text-muted">Calm consistency</p>
+                  <h3 className="text-medium text-text-primary">This week</h3>
                 </div>
                 <div className="heatmap-grid" aria-label="Weekly activity heatmap">
-                  {Array.from({ length: 7 }).map((_, index) => {
-                    const intensity = Math.max(0.14, Math.min(0.94, ((selectedSubject.completed_today || 0) * 0.4) + ((selectedMetrics.progressPct / 100) * (index + 1) / 7)));
-                    return (
-                      <div key={index} className="heatmap-cell" style={{ '--heat': intensity.toFixed(2) }}>
-                        <span>{['M', 'T', 'W', 'T', 'F', 'S', 'S'][index]}</span>
-                      </div>
-                    );
-                  })}
+                  {(() => {
+                    // Determine which day-of-week index is today (Mon=0 … Sun=6)
+                    const todayDow = (new Date().getDay() + 6) % 7; // JS Sun=0 → Mon=0
+                    const todayFocus = selectedSubject.completed_today || 0;
+                    const targetHours = parseFloat(selectedSubject.target_hours || selectedSubject.targetHours) || 0;
+                    const validHours = parseFloat(selectedSubject.valid_hours || selectedSubject.validHours) || 0;
+                    // Use the same locked daily goal formula for consistent heatmap intensity
+                    const dailyTarget = daysLeft >= 0 && targetHours > 0
+                      ? Math.max(0, (targetHours - validHours + todayFocus) / Math.max(1, daysLeft))
+                      : 0;
+                    // Today's intensity based on how much of the daily target was completed
+                    const todayIntensity = dailyTarget > 0
+                      ? Math.min(0.95, 0.15 + (todayFocus / dailyTarget) * 0.8)
+                      : todayFocus > 0 ? 0.75 : 0.15;
+
+                    return ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((label, index) => {
+                      // Only today has real data; past/future days show as empty
+                      const isToday = index === todayDow;
+                      const intensity = isToday ? todayIntensity : 0.10;
+                      return (
+                        <div
+                          key={index}
+                          className={`heatmap-cell${isToday ? ' heatmap-cell--today' : ''}`}
+                          style={{ '--heat': intensity.toFixed(2) }}
+                          title={isToday ? `Today: ${formatHoursToMins(todayFocus)} focused` : 'No data'}
+                        >
+                          <span>{label}</span>
+                        </div>
+                      );
+                    });
+                  })()}
                 </div>
               </section>
 
-              <div className="section-divider h-px my-8"></div>
 
-              <section className="detail-section">
-                <div className="flex items-center justify-between gap-4 mb-8">
-                  <h3 className="text-medium text-text-primary">Recent metrics</h3>
-                  <p className="text-tiny text-text-muted">Current tracked state</p>
-                </div>
-                <div className="history-table" role="table" aria-label="Subject summary metrics">
-                  {selectedMetrics.rows.map(([label, value]) => (
-                    <div key={label} className="history-row" role="row">
-                      <span className="history-label" role="cell">{label}</span>
-                      <span className="history-value" role="cell">{value}</span>
-                    </div>
-                  ))}
-                </div>
-              </section>
             </>
           ) : (
             <section className="detail-empty">

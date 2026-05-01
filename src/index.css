@@ -379,6 +379,29 @@
     padding: 64px;
     max-height: calc(100vh - 64px);
     overflow: auto;
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+  }
+
+  .dashboard-right:hover {
+    scrollbar-color: rgba(207, 125, 87, 0.22) transparent;
+  }
+
+  .dashboard-right::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .dashboard-right::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .dashboard-right::-webkit-scrollbar-thumb {
+    background: transparent;
+    border-radius: 999px;
+  }
+
+  .dashboard-right:hover::-webkit-scrollbar-thumb {
+    background: rgba(207, 125, 87, 0.28);
   }
 
   .panel-heading {
@@ -505,6 +528,11 @@
 
   [data-theme="light"] .heatmap-cell {
     color: rgba(35, 27, 23, 0.74);
+  }
+
+  .heatmap-cell--today {
+    border-color: rgba(207, 125, 87, 0.46);
+    box-shadow: 0 0 0 1px rgba(207, 125, 87, 0.22);
   }
 
   .history-table {
