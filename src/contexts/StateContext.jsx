@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getStartOfDay, getDaysLeft } from '../utils';
 
@@ -54,6 +54,8 @@ export const StateProvider = ({ children, session }) => {
   });
   
   const [loading, setLoading] = useState(true);
+  const initInFlightRef = useRef(null);
+  const initializedUserRef = useRef(null);
 
   const saveState = (newState = state) => {
     localStorage.setItem(STATE_KEY, JSON.stringify(newState));
@@ -61,6 +63,13 @@ export const StateProvider = ({ children, session }) => {
 
   // Load and patch state on mount
   async function initState(userId) {
+    if (!userId || initInFlightRef.current === userId || initializedUserRef.current === userId) {
+      return;
+    }
+
+    initInFlightRef.current = userId;
+
+    try {
     let localState = localStorage.getItem(STATE_KEY);
     localState = localState ? JSON.parse(localState) : null;
 
@@ -115,15 +124,15 @@ export const StateProvider = ({ children, session }) => {
     }
 
     if ((!dbSubjects || dbSubjects.length === 0) && patchedState.subjects.length > 0) {
-      // Migrate
+      // Migrate local subjects exactly once using stable IDs.
       const toInsert = patchedState.subjects.map(s => ({
-        id: crypto.randomUUID(),
+        id: s.id || crypto.randomUUID(),
         user_id: userId,
         name: s.name,
         target_hours: s.targetHours || s.target_hours, // Handle legacy keys
         valid_hours: s.validHours || s.valid_hours
       }));
-      await supabase.from('subjects').insert(toInsert);
+      await supabase.from('subjects').upsert(toInsert);
       patchedState.subjects = toInsert.map(s => ({...s, completed_today: 0, discarded_time_today: 0, discarded_time_total: 0}));
     } else if (dbSubjects && dbSubjects.length > 0) {
       // Merge db subjects with local transient fields (completed_today)
@@ -141,15 +150,22 @@ export const StateProvider = ({ children, session }) => {
     const normalizedState = normalizeState(patchedState);
     setState(normalizedState);
     saveState(normalizedState);
+    initializedUserRef.current = userId;
     setLoading(false);
+    } finally {
+      initInFlightRef.current = null;
+    }
   }
 
-  /* eslint-disable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     if (!session?.user) return;
+    if (initializedUserRef.current !== session.user.id) {
+      setLoading(true);
+    }
     initState(session.user.id);
   }, [session]);
-  /* eslint-enable react-hooks/set-state-in-effect, react-hooks/exhaustive-deps */
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   // Wrapper to update state and save automatically
   const updateState = (updater) => {

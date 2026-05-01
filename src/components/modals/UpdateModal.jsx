@@ -15,25 +15,25 @@ export default function UpdateModal({ onClose }) {
           </svg>
         </button>
         <h2 className="text-2xl font-semibold mb-2 text-brand-accent">What's New in MinTrack</h2>
-        <p className="text-sm mb-6 text-text-primary">Version 1.2</p>
+        <p className="text-sm mb-6 text-text-primary">Version 1.1</p>
 
         <div className="text-left mb-8">
           <div className="mb-4">
-            <h3 className="text-base font-semibold mb-1">Unified React App</h3>
+            <h3 className="text-base font-semibold mb-1">Back to the Future🌃</h3>
             <p className="text-sm text-text-secondary m-0">
-              The timer, state model, and session review flow now run through a single React architecture with no split between old and new app paths.
+              We have migrated our entire Codebase to React. We have also shifted from vanilla CSS to typescript. Iteration speed should be a lot faster now.
             </p>
           </div>
           <div className="mb-4">
-            <h3 className="text-base font-semibold mb-1">Cleaner Session Logging</h3>
+            <h3 className="text-base font-semibold mb-1">Cleaner Session Logging🖊️</h3>
             <p className="text-sm text-text-secondary m-0">
               Manual logs and completed timer sessions now preserve meaningful timestamps, making sync data much more trustworthy.
             </p>
           </div>
           <div className="mb-4">
-            <h3 className="text-base font-semibold mb-1">Migration Cleanup</h3>
+            <h3 className="text-base font-semibold mb-1">Cross Device Syncing📱</h3>
             <p className="text-sm text-text-secondary m-0">
-              Legacy migration artifacts and broken UI text have been cleaned up so the current app is easier to maintain and safer to extend.
+              It's still under refinement as of right now but for now you should be able to sync your data across devices pretty seamlessly. 
             </p>
           </div>
         </div>

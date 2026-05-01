@@ -232,13 +232,17 @@ export default function App() {
       setSession(session);
     });
 
-    supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
 
     // Theme initialization
     const savedTheme = localStorage.getItem('theme') || 'dark';
     document.documentElement.setAttribute('data-theme', savedTheme);
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   if (supabaseConfigError) {
