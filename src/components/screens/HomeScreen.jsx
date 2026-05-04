@@ -84,7 +84,7 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
     ? 'The term has settled. What remains here is what was sustained.'
     : dailyTargetCompleted > 0
       ? 'Momentum is already in motion today. Keep it steady with one clean session at a time.'
-      : 'The day is still open. One quiet session can change the texture of it.';
+      : 'Start your first session to see more insights';
 
   return (
     <div id="home-screen" className="dashboard-shell animate-[screenFade_0.6s_cubic-bezier(0.25,0.46,0.45,0.94)]">
