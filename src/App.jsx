@@ -39,19 +39,21 @@ function AppContent() {
     const hours = timer.calculateNetFocusTime();
     const sub = state.subjects.find((s) => s.id === subjectId);
 
+    const { totalPausedMs = 0, isPaused, pausedAt } = activeSession;
+    const currentPausedSessionMs = isPaused ? (Date.now() - pausedAt) : 0;
+    const finalTotalPausedMs = totalPausedMs + currentPausedSessionMs;
+    const pausedHours = finalTotalPausedMs / (1000 * 60 * 60);
+
     timer.clearSession();
 
-    if (hours < 0.25) {
-      updateState((prev) => ({
-        ...prev,
-        subjects: prev.subjects.map((s) => s.id === subjectId ? {
-          ...s,
-          discarded_time_total: (s.discarded_time_total || 0) + hours,
-          discarded_time_today: (s.discarded_time_today || 0) + hours
-        } : s)
-      }));
-      return;
-    }
+    updateState((prev) => ({
+      ...prev,
+      subjects: prev.subjects.map((s) => s.id === subjectId ? {
+        ...s,
+        paused_time_total: (s.paused_time_total || 0) + pausedHours,
+        paused_time_today: (s.paused_time_today || 0) + pausedHours
+      } : s)
+    }));
 
     setSessionReviewData({
       subjectId,
@@ -209,10 +211,6 @@ function AppContent() {
   };
 
   const handleDiscardSession = async (data) => {
-    updateState(prev => ({
-      ...prev,
-      subjects: prev.subjects.map(s => s.id === data.subjectId ? { ...s, discarded_time_total: (s.discarded_time_total || 0) + data.hours, discarded_time_today: (s.discarded_time_today || 0) + data.hours } : s)
-    }));
     setActiveModal(null);
     setSessionReviewData(null);
     await addSessionToQueue({ subject_id: data.subjectId, start_time: data.startTime, end_time: new Date().toISOString(), duration_minutes: data.hours * 60, is_discarded: true });
@@ -253,7 +251,11 @@ function AppContent() {
       )}
 
       {currentModal === 'sessionReview' && (
-        <SessionReviewModal reviewData={sessionReviewData} onSave={handleSaveSession} onDiscard={handleDiscardSession} />
+        <SessionReviewModal 
+          reviewData={sessionReviewData} 
+          onSave={handleSaveSession} 
+          onDiscard={handleDiscardSession} 
+        />
       )}
 
       {currentModal === 'update' && (
@@ -293,7 +295,7 @@ export default function App() {
   if (supabaseConfigError) {
     return (
       <div className="min-h-screen w-full flex items-center justify-center p-8">
-        <div className="glass-panel w-full max-w-[560px]">
+        <div className="glass-panel w-full max-w-[580px]">
           <h1 className="text-display mb-5 text-text-primary tracking-tight">MinTrack needs configuration</h1>
           <p className="text-text-secondary mb-9">
             {supabaseConfigError}

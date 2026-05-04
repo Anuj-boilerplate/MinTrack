@@ -4,7 +4,7 @@ import { getDaysLeft, formatHoursToMins, formatISODateForDisplay } from '../../u
 
 export default function HomeScreen({ onOpenModal, toggleTheme }) {
   const { state } = useStateContext();
-  const [selectedSubjectId, setSelectedSubjectId] = useState(() => state.subjects[0]?.id ?? null);
+  const [selectedSubjectId, setSelectedSubjectId] = useState(null);
 
   useEffect(() => {
     if (!state.subjects.length) {
@@ -12,10 +12,23 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
       return;
     }
 
-    if (!state.subjects.some((subject) => subject.id === selectedSubjectId)) {
-      setSelectedSubjectId(state.subjects[0].id);
+    if (selectedSubjectId !== null && !state.subjects.some((subject) => subject.id === selectedSubjectId)) {
+      setSelectedSubjectId(null);
     }
   }, [selectedSubjectId, state.subjects]);
+
+  useEffect(() => {
+    const handleGlobalClick = (e) => {
+      // If the click is inside a subject card or a modal, don't deselect
+      if (e.target.closest('.subject-card') || e.target.closest('.modal-backdrop')) {
+        return;
+      }
+      setSelectedSubjectId(null);
+    };
+
+    window.addEventListener('click', handleGlobalClick);
+    return () => window.removeEventListener('click', handleGlobalClick);
+  }, []);
 
   const today = new Date();
   const daysLeft = state.term ? getDaysLeft(today, state.term.endDate) : 0;
@@ -32,7 +45,7 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
     const completedToday = sub.completed_today || 0;
     totalTarget += targetHours;
     totalValid += validHours;
-    
+
     if (daysLeft >= 0) {
       // Snapshot the goal at the start of the day:
       // todayGoal = (targetHours - (validHours - completedToday)) / daysLeft
@@ -63,7 +76,7 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
       todayFocus: formatHoursToMins(todayFocus),
       todayGoal: formatHoursToMins(todayGoal),
       totalTime: formatHoursToMins(validHours),
-      discardedToday: formatHoursToMins(selectedSubject.discarded_time_today || 0),
+      pausedToday: formatHoursToMins(selectedSubject.paused_time_today || 0),
     };
   }
 
@@ -77,7 +90,7 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
     <div id="home-screen" className="dashboard-shell animate-[screenFade_0.6s_cubic-bezier(0.25,0.46,0.45,0.94)]">
       <header className="dashboard-header">
         <div>
-          <p className="text-tiny text-text-muted uppercase tracking-[0.28em] mb-5">Welcome to no nonsense</p>
+          <p className="text-tiny text-text-muted uppercase tracking-[0.28em] mb-5">Make every minute count.</p>
           <h1 className="wordmark">Mintrack</h1>
         </div>
 
@@ -163,8 +176,10 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
                 <article
                   key={sub.id}
                   className={`subject-card glass-surface ${selectedSubjectId === sub.id ? 'selected' : ''}`}
-                  onMouseEnter={() => setSelectedSubjectId(sub.id)}
-                  onFocus={() => setSelectedSubjectId(sub.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedSubjectId(sub.id);
+                  }}
                 >
                   <div className="flex justify-between items-start gap-4 mb-12">
                     <div className="min-w-0">
@@ -238,8 +253,8 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
                   <strong className="stat-value">{selectedMetrics.totalTime}</strong>
                 </div>
                 <div className="stat-tile">
-                  <span className="stat-label">Discarded Today</span>
-                  <strong className="stat-value">{selectedMetrics.discardedToday}</strong>
+                  <span className="stat-label">Paused Today</span>
+                  <strong className="stat-value">{selectedMetrics.pausedToday}</strong>
                 </div>
               </section>
 

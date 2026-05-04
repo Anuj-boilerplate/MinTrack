@@ -24,8 +24,8 @@ export default function ManualLogModal({ onClose, onLog }) {
   };
 
   return (
-    <div id="manual-log-modal" className="modal-backdrop">
-      <div className="modal-pane iridescent-border">
+    <div id="manual-log-modal" className="modal-backdrop" onClick={onClose}>
+      <div className="modal-pane iridescent-border" onClick={e => e.stopPropagation()}>
         <h2 className="text-medium mb-6 text-text-primary">Log Past Session</h2>
         <form id="manual-log-form" onSubmit={handleSubmit}>
           <div className="mb-9">

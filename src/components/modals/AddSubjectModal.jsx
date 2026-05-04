@@ -10,8 +10,8 @@ export default function AddSubjectModal({ onClose, onAdd }) {
   };
 
   return (
-    <div id="add-subject-modal" className="modal-backdrop">
-      <div className="modal-pane iridescent-border">
+    <div id="add-subject-modal" className="modal-backdrop" onClick={onClose}>
+      <div className="modal-pane iridescent-border" onClick={e => e.stopPropagation()}>
         <h2 className="text-medium mb-6 text-text-primary">Add Subject</h2>
         <form id="subject-form" onSubmit={handleSubmit}>
           <div className="mb-9">

@@ -55,7 +55,36 @@ export function useTimer(state, updateState) {
         startTime,
         startedAt: new Date(startTime).toISOString(),
         ui: uiSettings,
-        lastNotifiedPhaseId: null
+        lastNotifiedPhaseId: null,
+        isPaused: false,
+        pausedAt: null,
+        totalPausedMs: 0
+      }
+    });
+  };
+
+  const pause = () => {
+    const active = stateRef.current.activeSession;
+    if (!active || active.isPaused) return;
+    updateState({
+      activeSession: {
+        ...active,
+        isPaused: true,
+        pausedAt: Date.now()
+      }
+    });
+  };
+
+  const resume = () => {
+    const active = stateRef.current.activeSession;
+    if (!active || !active.isPaused) return;
+    const pauseDuration = Date.now() - active.pausedAt;
+    updateState({
+      activeSession: {
+        ...active,
+        isPaused: false,
+        pausedAt: null,
+        totalPausedMs: (active.totalPausedMs || 0) + pauseDuration
       }
     });
   };
@@ -65,7 +94,8 @@ export function useTimer(state, updateState) {
     const active = currentState.activeSession;
     if (!active) return;
 
-    const elapsedMs = Date.now() - active.startTime;
+    const now = active.isPaused ? active.pausedAt : Date.now();
+    const elapsedMs = now - active.startTime - (active.totalPausedMs || 0);
 
     const sub = currentState.subjects.find((subject) => subject.id === active.subjectId);
     if (sub && currentState.term) {
@@ -132,7 +162,8 @@ export function useTimer(state, updateState) {
   const calculateNetFocusTime = () => {
     const activeSession = stateRef.current.activeSession;
     if (!activeSession) return 0;
-    let rawElapsedMs = Date.now() - activeSession.startTime;
+    const now = activeSession.isPaused ? activeSession.pausedAt : Date.now();
+    let rawElapsedMs = now - activeSession.startTime - (activeSession.totalPausedMs || 0);
     const fMs = activeSession.ui.focusLength * 60000;
     const bMs = activeSession.ui.breakLength * 60000;
     const cycleMs = fMs + bMs;
@@ -175,5 +206,16 @@ export function useTimer(state, updateState) {
     };
   }, [state.activeSession, updateTimerDisplay]);
 
-  return { startFocusSession, displayTime, phaseInfo, dailyProgressPct, isDone, calculateNetFocusTime, clearSession };
+  return { 
+    startFocusSession, 
+    displayTime, 
+    phaseInfo, 
+    dailyProgressPct, 
+    isDone, 
+    calculateNetFocusTime, 
+    clearSession,
+    pause,
+    resume,
+    isPaused: state.activeSession?.isPaused ?? false
+  };
 }

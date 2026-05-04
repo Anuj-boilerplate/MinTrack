@@ -427,6 +427,7 @@
     min-height: 280px;
     display: flex;
     flex-direction: column;
+    cursor: pointer;
   }
 
   .subject-card:hover,
@@ -570,14 +571,21 @@
     justify-content: center;
     z-index: 50;
     padding: 2rem;
-    background: transparent;
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(12px);
+    cursor: pointer;
+  }
+
+  #session-review-modal.modal-backdrop {
+    cursor: default;
   }
 
   .modal-pane {
     @apply glass-surface;
     width: 100%;
-    max-width: 430px;
-    padding: 56px;
+    max-width: 580px;
+    padding: 64px;
+    cursor: default;
     animation: modalMaterialize 200ms var(--water-ease);
   }
 
@@ -767,6 +775,13 @@
     animation: pulseDot 1.8s ease-in-out infinite;
   }
 
+  .live-dot.paused {
+    background: var(--text-muted);
+    animation: none;
+    opacity: 0.6;
+    box-shadow: none;
+  }
+
   .timer-actions {
     display: flex;
     align-items: center;
@@ -775,14 +790,6 @@
     justify-content: center;
   }
 
-  .timer-resume-overlay {
-    position: absolute;
-    inset: auto 50% 8% auto;
-    transform: translateX(50%);
-    width: min(100%, 360px);
-    padding: 48px;
-    z-index: 5;
-  }
 
   @keyframes progressLoad {
     0% { transform: scaleX(0); transform-origin: left; }

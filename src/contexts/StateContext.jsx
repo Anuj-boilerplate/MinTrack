@@ -16,8 +16,8 @@ function normalizeSubject(subject) {
     valid_hours: Number(subject.valid_hours ?? subject.validHours ?? 0),
     carryover: Number(subject.carryover ?? 0),
     completed_today: Number(subject.completed_today ?? 0),
-    discarded_time_total: Number(subject.discarded_time_total ?? 0),
-    discarded_time_today: Number(subject.discarded_time_today ?? 0)
+    paused_time_total: Number(subject.paused_time_total ?? subject.pausedTimeTotal ?? 0),
+    paused_time_today: Number(subject.paused_time_today ?? subject.pausedTimeToday ?? 0)
   };
 }
 
@@ -90,7 +90,7 @@ export const StateProvider = ({ children, session }) => {
         if (getDaysLeft(loopDate, patchedState.term.endDate) < 0) break;
         patchedState.subjects.forEach(sub => {
           sub.completed_today = 0;
-          sub.discarded_time_today = 0;
+          sub.paused_time_today = 0;
         });
         loopDate.setDate(loopDate.getDate() + 1);
         patchedState.last_updated_date = loopDate.toISOString();
@@ -133,7 +133,7 @@ export const StateProvider = ({ children, session }) => {
         valid_hours: s.validHours || s.valid_hours
       }));
       await supabase.from('subjects').upsert(toInsert);
-      patchedState.subjects = toInsert.map(s => ({...s, completed_today: 0, discarded_time_today: 0, discarded_time_total: 0}));
+      patchedState.subjects = toInsert.map(s => ({...s, completed_today: 0, paused_time_today: 0, paused_time_total: 0}));
     } else if (dbSubjects && dbSubjects.length > 0) {
       // Merge db subjects with local transient fields (completed_today)
       patchedState.subjects = dbSubjects.map(dbSub => {
@@ -143,8 +143,8 @@ export const StateProvider = ({ children, session }) => {
           // Safety net: Use the higher value of valid_hours between DB and local storage
           valid_hours: Math.max(dbSub.valid_hours || 0, localSub.valid_hours || 0),
           completed_today: localSub.completed_today || 0,
-          discarded_time_today: localSub.discarded_time_today || 0,
-          discarded_time_total: localSub.discarded_time_total || 0
+          paused_time_today: localSub.paused_time_today || 0,
+          paused_time_total: localSub.paused_time_total || 0
         };
       });
     }
@@ -179,8 +179,13 @@ export const StateProvider = ({ children, session }) => {
     });
   };
 
+  const logout = async () => {
+    localStorage.removeItem(STATE_KEY);
+    await supabase.auth.signOut();
+  };
+
   return (
-    <StateContext.Provider value={{ state, updateState, loading, userId: session?.user?.id }}>
+    <StateContext.Provider value={{ state, updateState, logout, loading, userId: session?.user?.id }}>
       {children}
     </StateContext.Provider>
   );

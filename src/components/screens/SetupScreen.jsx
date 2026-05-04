@@ -48,7 +48,7 @@ export default function SetupScreen() {
 
   return (
     <div id="setup-screen" className="animate-[fadeIn_0.4s_ease-out]">
-      <div className="glass-panel max-w-[400px] mx-auto text-center">
+      <div className="glass-panel max-w-[580px] mx-auto text-center">
         <h1 className="text-4xl font-bold mb-3 tracking-tight">Welcome to MinTrack</h1>
         <p className="text-text-secondary mb-6">Let's set up your academic term.</p>
         <form id="term-form" onSubmit={handleStartTerm} className="text-left">

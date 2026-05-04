@@ -11,8 +11,8 @@ export default function PomodoroConfigModal({ onClose, onStart }) {
   };
 
   return (
-    <div id="pomodoro-modal" className="modal-backdrop">
-      <div className="modal-pane iridescent-border">
+    <div id="pomodoro-modal" className="modal-backdrop" onClick={onClose}>
+      <div className="modal-pane iridescent-border" onClick={e => e.stopPropagation()}>
         <h2 className="text-medium mb-6 text-text-primary">Configure Session</h2>
         <form id="pomodoro-form" onSubmit={handleSubmit}>
           <div className="mb-9">

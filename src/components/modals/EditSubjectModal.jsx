@@ -13,8 +13,8 @@ export default function EditSubjectModal({ subject, onClose, onSave, onDelete })
   if (!subject) return null;
 
   return (
-    <div id="edit-subject-modal" className="modal-backdrop">
-      <div className="modal-pane iridescent-border">
+    <div id="edit-subject-modal" className="modal-backdrop" onClick={onClose}>
+      <div className="modal-pane iridescent-border" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-start mb-6">
           <h2 className="text-medium text-text-primary">Edit Subject</h2>
           <button type="button" className="icon-btn hover:bg-brand-danger hover:border-brand-danger hover:text-white" id="delete-subject-btn" title="Delete Subject" onClick={() => onDelete(subject.id)}>
@@ -37,9 +37,9 @@ export default function EditSubjectModal({ subject, onClose, onSave, onDelete })
             <input type="number" id="edit-target-hours" className="input-field" min="1" required value={target} onChange={(e) => setTarget(e.target.value)} />
           </div>
           <div className="mb-9">
-            <label className="block text-sm text-text-secondary mb-3">Discarded Time</label>
-            <div id="edit-discarded-time" className="text-text-secondary opacity-70 text-sm">
-              {formatHoursToMins(subject.discarded_time_total || 0)}
+            <label className="block text-sm text-text-secondary mb-3">Paused Time</label>
+            <div id="edit-paused-time" className="text-text-secondary opacity-70 text-sm">
+              {formatHoursToMins(subject.paused_time_total || 0)}
             </div>
           </div>
           <div className="flex justify-end gap-6 mt-12">
