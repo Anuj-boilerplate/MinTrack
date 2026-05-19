@@ -1,5 +1,19 @@
 export const CHANGELOG = [
   {
+    version: '1.4.1',
+    date: '2026-05-19',
+    changes:[
+      {
+      title: "More Robust Offline Queing",
+      description:"Offline CRUD support is now extended to subjects as well, handled by an extremely robust request queing system."
+      },
+      {
+        title: "Term Creation Issue Addressed",
+        description: "Term Creation will not be corrupted by zombie data not deleted due to previously absent queing of CRUD requests."
+      }
+    ]
+  },
+  {
     version: '1.4',
     date: '2026-05-19',
     changes: [
