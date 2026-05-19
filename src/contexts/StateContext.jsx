@@ -12,35 +12,32 @@ export const useStateContext = () => useContext(StateContext);
 function normalizeSubject(subject) {
   return {
     ...subject,
-    target_hours: Number(subject.target_hours ?? subject.targetHours ?? 0),
-    valid_hours: Number(subject.valid_hours ?? subject.validHours ?? 0),
+    target_hours: Number(subject.target_hours ?? 0),
+    valid_hours: Number(subject.valid_hours ?? 0),
     carryover: Number(subject.carryover ?? 0),
     completed_today: Number(subject.completed_today ?? 0),
-    paused_time_total: Number(subject.paused_time_total ?? subject.pausedTimeTotal ?? 0),
-    paused_time_today: Number(subject.paused_time_today ?? subject.pausedTimeToday ?? 0)
+    paused_time_total: Number(subject.paused_time_total ?? 0),
+    paused_time_today: Number(subject.paused_time_today ?? 0)
   };
 }
 
 function normalizeState(rawState = {}) {
   const normalizedTerm = rawState.term ? {
-    startDate: rawState.term.startDate && !rawState.term.startDate.includes('T')
-      ? new Date(rawState.term.startDate).toISOString()
-      : rawState.term.startDate,
-    endDate: rawState.term.endDate && !rawState.term.endDate.includes('T')
-      ? new Date(rawState.term.endDate).toISOString()
-      : rawState.term.endDate
-  } : null;
-
-  const activeSession = rawState.activeSession ? {
-    ...rawState.activeSession,
-    startedAt: rawState.activeSession.startedAt || new Date(rawState.activeSession.startTime).toISOString(),
-    lastNotifiedPhaseId: rawState.activeSession.lastNotifiedPhaseId || null
+    startDate: rawState.term.startDate?.includes('T') 
+      ? rawState.term.startDate 
+      : new Date(rawState.term.startDate).toISOString(),
+    endDate: rawState.term.endDate?.includes('T') 
+      ? rawState.term.endDate 
+      : new Date(rawState.term.endDate).toISOString()
   } : null;
 
   return {
     term: normalizedTerm,
     subjects: Array.isArray(rawState.subjects) ? rawState.subjects.map(normalizeSubject) : [],
-    activeSession,
+    activeSession: rawState.activeSession ? {
+      ...rawState.activeSession,
+      startedAt: rawState.activeSession.startedAt || new Date(rawState.activeSession.startTime).toISOString(),
+    } : null,
     last_updated_date: rawState.last_updated_date || new Date().toISOString()
   };
 }
@@ -54,108 +51,67 @@ export const StateProvider = ({ children, session }) => {
   });
   
   const [loading, setLoading] = useState(true);
-  const initInFlightRef = useRef(null);
   const initializedUserRef = useRef(null);
 
-  const saveState = (newState = state) => {
+  const saveState = (newState) => {
     localStorage.setItem(STATE_KEY, JSON.stringify(newState));
   };
 
   // Load and patch state on mount
   async function initState(userId) {
-    if (!userId || initInFlightRef.current === userId || initializedUserRef.current === userId) {
-      return;
-    }
-
-    initInFlightRef.current = userId;
+    if (!userId || initializedUserRef.current === userId) return;
+    initializedUserRef.current = userId;
 
     try {
-    let localState = localStorage.getItem(STATE_KEY);
-    localState = localState ? JSON.parse(localState) : null;
+      const localData = localStorage.getItem(STATE_KEY);
+      let patchedState = normalizeState(localData ? JSON.parse(localData) : {});
 
-    // Default empty state
-    let patchedState = normalizeState(localState || {
-      term: null,
-      subjects: [],
-      activeSession: null,
-      last_updated_date: new Date().toISOString()
-    });
+      // Simple Daily Reset: If the last update was before today, reset daily stats
+      const lastUpdate = getStartOfDay(new Date(patchedState.last_updated_date));
+      const today = getStartOfDay();
 
-    // Daily Updates Logic
-    if (patchedState.term && patchedState.last_updated_date) {
-      let loopDate = getStartOfDay(new Date(patchedState.last_updated_date));
-      const todayDate = getStartOfDay();
-
-      while (loopDate < todayDate) {
-        if (getDaysLeft(loopDate, patchedState.term.endDate) < 0) break;
+      if (lastUpdate.getTime() < today.getTime()) {
         patchedState.subjects.forEach(sub => {
           sub.completed_today = 0;
           sub.paused_time_today = 0;
         });
-        loopDate.setDate(loopDate.getDate() + 1);
-        patchedState.last_updated_date = loopDate.toISOString();
+        patchedState.last_updated_date = today.toISOString();
       }
 
-      if (getDaysLeft(todayDate, patchedState.term.endDate) >= 0) {
-        if (getStartOfDay(new Date(patchedState.last_updated_date)).getTime() !== todayDate.getTime()) {
-          patchedState.last_updated_date = todayDate.toISOString();
-        }
+      // Sync with Supabase
+      const [{ data: dbProfile }, { data: dbSubjects }] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
+        supabase.from('subjects').select('*').eq('user_id', userId)
+      ]);
+
+      // Profile (Term) Reconciliation
+      if (dbProfile?.term_start_date) {
+        patchedState.term = { startDate: dbProfile.term_start_date, endDate: dbProfile.term_end_date };
+      } else if (patchedState.term) {
+        await supabase.from('profiles').upsert({ id: userId, term_start_date: patchedState.term.startDate, term_end_date: patchedState.term.endDate });
       }
-    }
 
-    // Sync with Supabase (Reconciliation)
-    const { data: dbProfile } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
-    const { data: dbSubjects } = await supabase.from('subjects').select('*').eq('user_id', userId);
+      // Subjects Reconciliation
+      if (dbSubjects?.length > 0) {
+        patchedState.subjects = dbSubjects.map(dbSub => {
+          const localSub = patchedState.subjects.find(ls => ls.id === dbSub.id) || {};
+          return {
+            ...dbSub,
+            valid_hours: Math.max(dbSub.valid_hours || 0, localSub.valid_hours || 0),
+            completed_today: localSub.completed_today || 0,
+            paused_time_today: localSub.paused_time_today || 0,
+            paused_time_total: localSub.paused_time_total || 0
+          };
+        });
+      } else if (patchedState.subjects.length > 0) {
+        const toInsert = patchedState.subjects.map(s => ({ ...s, user_id: userId }));
+        await supabase.from('subjects').upsert(toInsert);
+      }
 
-    // Profile (Term) Reconciliation
-    if (patchedState.term && !dbProfile?.term_start_date) {
-      // Migrate local term to Supabase
-      await supabase.from('profiles').upsert({
-        id: userId,
-        term_start_date: patchedState.term.startDate,
-        term_end_date: patchedState.term.endDate
-      });
-    } else if (dbProfile?.term_start_date && dbProfile?.term_end_date) {
-      // Use Supabase term
-      patchedState.term = {
-        startDate: dbProfile.term_start_date,
-        endDate: dbProfile.term_end_date
-      };
-    }
-
-    if ((!dbSubjects || dbSubjects.length === 0) && patchedState.subjects.length > 0) {
-      // Migrate local subjects exactly once using stable IDs.
-      const toInsert = patchedState.subjects.map(s => ({
-        id: s.id || crypto.randomUUID(),
-        user_id: userId,
-        name: s.name,
-        target_hours: s.targetHours || s.target_hours, // Handle legacy keys
-        valid_hours: s.validHours || s.valid_hours
-      }));
-      await supabase.from('subjects').upsert(toInsert);
-      patchedState.subjects = toInsert.map(s => ({...s, completed_today: 0, paused_time_today: 0, paused_time_total: 0}));
-    } else if (dbSubjects && dbSubjects.length > 0) {
-      // Merge db subjects with local transient fields (completed_today)
-      patchedState.subjects = dbSubjects.map(dbSub => {
-        const localSub = patchedState.subjects.find(ls => ls.id === dbSub.id) || {};
-        return {
-          ...dbSub,
-          // Safety net: Use the higher value of valid_hours between DB and local storage
-          valid_hours: Math.max(dbSub.valid_hours || 0, localSub.valid_hours || 0),
-          completed_today: localSub.completed_today || 0,
-          paused_time_today: localSub.paused_time_today || 0,
-          paused_time_total: localSub.paused_time_total || 0
-        };
-      });
-    }
-
-    const normalizedState = normalizeState(patchedState);
-    setState(normalizedState);
-    saveState(normalizedState);
-    initializedUserRef.current = userId;
-    setLoading(false);
-    } finally {
-      initInFlightRef.current = null;
+      updateState(patchedState);
+      setLoading(false);
+    } catch (err) {
+      console.error("Initialization failed", err);
     }
   }
 

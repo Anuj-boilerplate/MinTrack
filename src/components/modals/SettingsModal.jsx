@@ -1,6 +1,7 @@
 import { useRef } from 'react';
 import { useStateContext } from '../../contexts/StateContext';
 import { supabase } from '../../lib/supabaseClient';
+import { addActionToQueue, processSyncQueue } from '../../lib/syncQueue';
 
 export default function SettingsModal({ onClose }) {
   const { state, updateState, logout, userId } = useStateContext();
@@ -55,12 +56,19 @@ export default function SettingsModal({ onClose }) {
 
   const handleClearData = async () => {
     if (!confirm('Are you sure you want to completely erase all data? This cannot be undone!')) return;
-    if (userId) {
-      await supabase.from('subjects').delete().eq('user_id', userId);
-      await supabase.from('profiles').update({ term_start_date: null, term_end_date: null }).eq('id', userId);
-    }
+    
+    // Clear local state immediately
     updateState({ term: null, subjects: [], activeSession: null, last_updated_date: null });
     onClose();
+
+    // Queue the deletion for Supabase
+    if (userId) {
+      await addActionToQueue({
+        type: 'DELETE_ALL_DATA',
+        userId: userId
+      });
+      processSyncQueue();
+    }
   };
 
   return (

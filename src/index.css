@@ -416,6 +416,14 @@
     margin-top: 1rem;
   }
 
+  .mobile-actions-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+
   .subject-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -875,6 +883,96 @@
     .subject-card,
     .modal-pane {
       padding: 48px;
+    }
+  }
+
+  @media (max-width: 520px) {
+    .app-shell {
+      padding: 20px;
+    }
+
+    .dashboard-header {
+      text-align: center;
+      align-items: center;
+    }
+
+    .header-pill {
+      margin-top: 12px;
+    }
+
+    .wordmark {
+      font-size: 2.5rem;
+    }
+
+    .text-display {
+      font-size: 2.25rem;
+      line-height: 1.1;
+    }
+
+    .mobile-actions-wrapper {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 20px 24px;
+      padding-bottom: calc(20px + env(safe-area-inset-bottom));
+      background: rgba(18, 17, 17, 0.85);
+      backdrop-filter: blur(20px) saturate(180%);
+      border-top: 1px solid var(--border-glass);
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+    }
+
+    .mobile-actions-wrapper button {
+      flex: 1;
+      justify-content: center;
+      white-space: nowrap;
+    }
+
+    .dashboard-shell {
+      gap: 24px;
+      padding-bottom: 80px;
+    }
+
+    .progress-rail {
+      gap: 20px;
+      padding: 24px;
+    }
+
+    .subject-card,
+    .modal-pane,
+    .dashboard-right {
+      padding: 24px;
+    }
+
+    .modal-pane {
+      width: 94%;
+      max-width: none;
+    }
+
+    .timer-ring-wrap {
+      width: 280px;
+      height: 280px;
+    }
+
+    .timer-ring-svg {
+      transform: scale(0.8);
+    }
+
+    .timer-display {
+      font-size: 4rem;
+    }
+
+    .timer-actions {
+      gap: 12px;
+    }
+
+    .primary-btn, 
+    .secondary-btn {
+      padding: 16px 24px;
+      font-size: 0.95rem;
     }
   }
 }

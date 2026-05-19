@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useStateContext } from '../../contexts/StateContext';
-import { supabase } from '../../lib/supabaseClient';
+import { addActionToQueue, processSyncQueue } from '../../lib/syncQueue';
 
 export default function SetupScreen() {
-  const { updateState } = useStateContext();
+  const { updateState, userId } = useStateContext();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 
@@ -16,14 +16,17 @@ export default function SetupScreen() {
     
     updateState({ term: newTerm });
 
-    // Sync to Supabase if logged in
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.user?.id) {
-      await supabase.from('profiles').upsert({
-        id: session.user.id,
-        term_start_date: newTerm.startDate,
-        term_end_date: newTerm.endDate
+    // Sync to Supabase via Queue
+    if (userId) {
+      await addActionToQueue({
+        type: 'UPDATE_PROFILE',
+        userId: userId,
+        payload: {
+          term_start_date: newTerm.startDate,
+          term_end_date: newTerm.endDate
+        }
       });
+      processSyncQueue();
     }
   };
 

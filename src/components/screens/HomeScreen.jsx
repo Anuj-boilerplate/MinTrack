@@ -159,8 +159,8 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
                 {state.term && `${formatISODateForDisplay(state.term.startDate)} to ${formatISODateForDisplay(state.term.endDate)}`}
               </p>
             </div>
-            <div className="flex items-center gap-[18px] flex-wrap justify-end">
-              <button id="log-session-btn" className="secondary-glass-btn" type="button" onClick={() => onOpenModal('manualLog')}>Log Session</button>
+            <div className="mobile-actions-wrapper">
+              <button id="manual-log-btn" className="secondary-glass-btn" type="button" onClick={() => onOpenModal('manualLog')}>Log Session</button>
               <button id="add-subject-btn" className="secondary-glass-btn" type="button" onClick={() => onOpenModal('addSubject')}>Add Subject</button>
             </div>
           </div>

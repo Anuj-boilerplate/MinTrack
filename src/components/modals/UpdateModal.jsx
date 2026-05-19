@@ -1,4 +1,9 @@
+import { APP_VERSION } from '../../config';
+import { CHANGELOG } from '../../changelog';
+
 export default function UpdateModal({ onClose }) {
+  const latestUpdate = CHANGELOG.find(entry => entry.version === APP_VERSION) || CHANGELOG[0];
+
   return (
     <div id="update-modal" className="modal-backdrop" onClick={onClose}>
       <div className="modal-pane iridescent-border relative" onClick={e => e.stopPropagation()}>
@@ -16,27 +21,17 @@ export default function UpdateModal({ onClose }) {
         </button>
 
         <h2 className="text-medium mb-3 text-brand-accent">What&apos;s New in Mintrack</h2>
-        <p className="text-small mb-9 text-text-primary">Version 1.4</p>
+        <p className="text-small mb-9 text-text-primary">Version {latestUpdate.version}</p>
 
-        <div className="text-left mb-12">
-          <div className="mb-6">
-            <h3 className="text-small font-semibold mb-2">Removal of fuckass 15 minute logic</h3>
-            <p className="text-small text-text-secondary m-0">
-              I don't even know why I'd ever even add that. The more I begin thinking from a consumer's perspective the more a realize that it's just an app forcing behaviour on you and that my friends is NOT okay 💔
-            </p>
-          </div>
-          <div className="mb-6">
-            <h3 className="text-small font-semibold mb-2">Pause Button Works Now</h3>
-            <p className="text-small text-text-secondary m-0">
-              Don't even know why it didn't up until now LMAO I must've forgotten.
-            </p>
-          </div>
-          <div className="mb-6">
-            <h3 className="text-small font-semibold mb-2">Changed Modal Dimensions</h3>
-            <p className="text-small text-text-secondary m-0">
-              Now they are THICC like me haha (I'm kidding, I ain't allat)
-            </p>
-          </div>
+        <div className="text-left mb-12 max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+          {latestUpdate.changes.map((change, index) => (
+            <div key={index} className="mb-6">
+              <h3 className="text-small font-semibold mb-2">{change.title}</h3>
+              <p className="text-small text-text-secondary m-0">
+                {change.description}
+              </p>
+            </div>
+          ))}
         </div>
 
         <button type="button" id="dismiss-update-btn" className="primary-btn w-full" onClick={onClose}>
