@@ -1,5 +1,15 @@
 export const CHANGELOG = [
   {
+    version: '1.4.2',
+    date: '2026-05-30',
+    changes:[
+      {
+      title: "Added Custom Deadlines",
+      description:"Be more in control of your tasks with the new 'Custom Deadlines' feature. The app will suggest you daily targets based on these deadlines allowing you to focus on what truly matters."
+      }
+    ]
+  },
+  {
     version: '1.4.1',
     date: '2026-05-19',
     changes:[

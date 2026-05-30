@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { getStartOfDay, getDaysLeft } from '../utils';
+import { getStartOfDay } from '../utils';
 
 const STATE_KEY = 'mintrack_state';
 
@@ -17,7 +17,8 @@ function normalizeSubject(subject) {
     carryover: Number(subject.carryover ?? 0),
     completed_today: Number(subject.completed_today ?? 0),
     paused_time_total: Number(subject.paused_time_total ?? 0),
-    paused_time_today: Number(subject.paused_time_today ?? 0)
+    paused_time_today: Number(subject.paused_time_today ?? 0),
+    deadline: subject.deadline ? new Date(subject.deadline).toISOString() : null
   };
 }
 
@@ -126,14 +127,14 @@ export const StateProvider = ({ children, session }) => {
   /* eslint-enable react-hooks/exhaustive-deps */
 
   // Wrapper to update state and save automatically
-  const updateState = (updater) => {
+  function updateState(updater) {
     setState(prev => {
       const candidate = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
       const next = normalizeState(candidate);
       saveState(next);
       return next;
     });
-  };
+  }
 
   const logout = async () => {
     localStorage.removeItem(STATE_KEY);

@@ -4,10 +4,11 @@ import { formatHoursToMins } from '../../utils';
 export default function EditSubjectModal({ subject, onClose, onSave, onDelete }) {
   const [name, setName] = useState(subject?.name || '');
   const [target, setTarget] = useState(subject?.target_hours || subject?.targetHours || '');
+  const [deadline, setDeadline] = useState(subject?.deadline ? subject.deadline.split('T')[0] : '');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSave(subject.id, name, parseFloat(target));
+    onSave(subject.id, name, parseFloat(target), deadline ? new Date(deadline).toISOString() : null);
   };
 
   if (!subject) return null;
@@ -35,6 +36,10 @@ export default function EditSubjectModal({ subject, onClose, onSave, onDelete })
           <div className="mb-9">
             <label htmlFor="edit-target-hours" className="block text-sm text-text-secondary mb-3">Total Target Hours</label>
             <input type="number" id="edit-target-hours" className="input-field" min="1" required value={target} onChange={(e) => setTarget(e.target.value)} />
+          </div>
+          <div className="mb-9">
+            <label htmlFor="edit-subject-deadline" className="block text-sm text-text-secondary mb-3">Custom Deadline (Optional)</label>
+            <input type="date" id="edit-subject-deadline" className="input-field" value={deadline} onChange={(e) => setDeadline(e.target.value)} />
           </div>
           <div className="mb-9">
             <label className="block text-sm text-text-secondary mb-3">Paused Time</label>

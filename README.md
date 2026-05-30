@@ -44,3 +44,13 @@ npm run dev
 ## Current architecture
 
 The active app lives in `src/` and uses `StateContext` plus `useTimer` as the canonical runtime path for local state, timer state, and cloud sync behavior.
+
+## Database schema
+
+Documentation:
+
+- [docs/database-schema.md](/C:/Users/Anuj/Alexandria/docs/database-schema.md)
+
+SQL schema:
+
+- [supabase/schema.sql](/C:/Users/Anuj/Alexandria/supabase/schema.sql)

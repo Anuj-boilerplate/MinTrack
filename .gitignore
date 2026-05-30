@@ -29,3 +29,28 @@ dist-ssr
 .env.test.local
 .env.production.local
 *.env
+
+# Vite / Caching
+.vite
+.eslintcache
+.prettiercache
+.stylelintcache
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output
+cypress/screenshots/
+cypress/videos/
+playwright-report/
+test-results/
+
+# System Files
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Hosting & Deployment
+.netlify
+.vercel
+.firebase

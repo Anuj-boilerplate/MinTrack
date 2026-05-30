@@ -98,8 +98,9 @@ export function useTimer(state, updateState) {
     const elapsedMs = now - active.startTime - (active.totalPausedMs || 0);
 
     const sub = currentState.subjects.find((subject) => subject.id === active.subjectId);
-    if (sub && currentState.term) {
-      const daysLeft = getDaysLeft(getStartOfDay(), currentState.term.endDate);
+    if (sub && (sub.deadline || currentState.term)) {
+      const subDeadline = sub.deadline || currentState.term.endDate;
+      const daysLeft = getDaysLeft(getStartOfDay(), subDeadline);
       const tHours = sub.target_hours || 0;
       const vHours = sub.valid_hours || 0;
       

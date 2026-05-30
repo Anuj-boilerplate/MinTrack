@@ -39,6 +39,7 @@ export default function SettingsModal({ onClose }) {
         name: s.name,
         target_hours: s.target_hours ?? s.targetHours ?? 0,
         valid_hours: s.valid_hours ?? s.validHours ?? 0,
+        deadline: s.deadline ?? null,
       }));
       if (inserts.length) await supabase.from('subjects').insert(inserts);
     }

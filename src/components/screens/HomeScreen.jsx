@@ -46,11 +46,13 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
     totalTarget += targetHours;
     totalValid += validHours;
 
-    if (daysLeft >= 0) {
-      // Snapshot the goal at the start of the day:
-      // todayGoal = (targetHours - (validHours - completedToday)) / daysLeft
-      const todayGoal = Math.max(0, (targetHours - validHours + completedToday) / Math.max(1, daysLeft) + (sub.carryover || 0));
-      dailyTargetRequired += todayGoal;
+    const subjectDeadline = sub.deadline || (state.term ? state.term.endDate : null);
+    if (subjectDeadline) {
+      const subjectDaysLeft = getDaysLeft(today, subjectDeadline);
+      if (subjectDaysLeft >= 0) {
+        const todayGoal = Math.max(0, (targetHours - validHours + completedToday) / Math.max(1, subjectDaysLeft) + (sub.carryover || 0));
+        dailyTargetRequired += todayGoal;
+      }
       dailyTargetCompleted += completedToday;
     }
   });
@@ -64,12 +66,20 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
     const targetHours = parseFloat(selectedSubject.target_hours || selectedSubject.targetHours) || 0;
     const validHours = parseFloat(selectedSubject.valid_hours || selectedSubject.validHours) || 0;
     const todayFocus = selectedSubject.completed_today || 0;
-    // Lock the goal at the start of the day using: validAtDayStart = validHours - completedToday
-    // todayGoal = (targetHours - validAtDayStart) / daysLeft  — fixed for the entire day
-    const todayGoal = daysLeft >= 0
-      ? Math.max(0, (targetHours - validHours + todayFocus) / Math.max(1, daysLeft) + (selectedSubject.carryover || 0))
-      : 0;
-    const remainingToday = Math.max(0, todayGoal - todayFocus);
+    
+    const subjectDeadline = selectedSubject.deadline || (state.term ? state.term.endDate : null);
+    let todayGoal = 0;
+    let isCompleted = validHours >= targetHours;
+    let isOverdue = false;
+
+    if (subjectDeadline) {
+      const subjectDaysLeft = getDaysLeft(today, subjectDeadline);
+      if (subjectDaysLeft >= 0) {
+        todayGoal = Math.max(0, (targetHours - validHours + todayFocus) / Math.max(1, subjectDaysLeft) + (selectedSubject.carryover || 0));
+      } else {
+        isOverdue = !isCompleted;
+      }
+    }
 
     selectedMetrics = {
       progressPct: targetHours > 0 ? Math.min((validHours / targetHours) * 100, 100) : 0,
@@ -77,6 +87,8 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
       todayGoal: formatHoursToMins(todayGoal),
       totalTime: formatHoursToMins(validHours),
       pausedToday: formatHoursToMins(selectedSubject.paused_time_today || 0),
+      isCompleted,
+      isOverdue
     };
   }
 
@@ -169,7 +181,6 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
             {state.subjects.map((sub) => {
               const targetHours = parseFloat(sub.target_hours || sub.targetHours) || 0;
               const validHours = parseFloat(sub.valid_hours || sub.validHours) || 0;
-              const todayFocus = sub.completed_today || 0;
               const pct = targetHours > 0 ? Math.min((validHours / targetHours) * 100, 100) : 0;
 
               return (
@@ -187,6 +198,11 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
                         <span className="text-medium text-text-primary block truncate">{sub.name}</span>
                       </button>
                       <p className="text-tiny text-text-muted mt-3">{formatHoursToMins(validHours)} of {targetHours}h complete</p>
+                      {sub.deadline && (
+                        <p className={`text-tiny mt-2 ${getDaysLeft(today, sub.deadline) < 0 && validHours < targetHours ? 'text-[#b86d60]' : 'text-text-muted opacity-80'}`}>
+                          Deadline: {formatISODateForDisplay(sub.deadline)}
+                        </p>
+                      )}
                     </div>
 
                     <button
@@ -209,15 +225,39 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
                   </div>
 
                   <div className="mt-auto pt-12">
-                    {daysLeft >= 0 ? (
-                      <button className="session-launch-btn w-full" onClick={() => onOpenModal('pomodoro', sub.id)} type="button">
-                        Start Session
-                      </button>
-                    ) : (
-                      <button className="session-launch-btn w-full opacity-60 cursor-not-allowed" disabled type="button">
-                        Finished
-                      </button>
-                    )}
+                    {(() => {
+                      const subDeadline = sub.deadline || (state.term ? state.term.endDate : null);
+                      const subDaysLeft = subDeadline ? getDaysLeft(today, subDeadline) : 0;
+                      const isSubCompleted = validHours >= targetHours;
+                      const isSubOverdue = subDaysLeft < 0 && !isSubCompleted;
+
+                      if (isSubCompleted) {
+                        return (
+                          <button className="session-launch-btn w-full opacity-70 cursor-not-allowed text-[#d3a36c] border-[rgba(211,163,108,0.3)]" disabled type="button">
+                            Completed
+                          </button>
+                        );
+                      }
+                      if (isSubOverdue) {
+                        return (
+                          <button className="session-launch-btn w-full opacity-80 cursor-not-allowed bg-[rgba(184,109,96,0.15)] text-[#b86d60] border-[rgba(184,109,96,0.3)]" disabled type="button">
+                            Overdue
+                          </button>
+                        );
+                      }
+                      if (subDaysLeft >= 0) {
+                        return (
+                          <button className="session-launch-btn w-full" onClick={() => onOpenModal('pomodoro', sub.id)} type="button">
+                            Start Session
+                          </button>
+                        );
+                      }
+                      return (
+                        <button className="session-launch-btn w-full opacity-60 cursor-not-allowed" disabled type="button">
+                          Finished
+                        </button>
+                      );
+                    })()}
                   </div>
                 </article>
               );
@@ -233,6 +273,13 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
                   <div>
                     <p className="text-tiny text-text-muted uppercase tracking-[0.22em] mb-5">Selected subject</p>
                     <h2 className="text-display">{selectedSubject.name}</h2>
+                    {selectedSubject.deadline && (
+                      <p className="text-tiny text-text-muted mt-3 flex items-center gap-3">
+                        Deadline: {formatISODateForDisplay(selectedSubject.deadline)}
+                        {selectedMetrics.isOverdue && <span className="px-3 py-1 text-tiny rounded-full bg-[rgba(184,109,96,0.18)] text-[#b86d60] border border-[rgba(184,109,96,0.3)]">Overdue</span>}
+                        {selectedMetrics.isCompleted && <span className="px-3 py-1 text-tiny rounded-full bg-[rgba(211,163,108,0.18)] text-[#d3a36c] border border-[rgba(211,163,108,0.3)]">Completed</span>}
+                      </p>
+                    )}
                   </div>
                 </div>
               </section>
@@ -266,16 +313,18 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
                 </div>
                 <div className="heatmap-grid" aria-label="Weekly activity heatmap">
                   {(() => {
-                    // Determine which day-of-week index is today (Mon=0 … Sun=6)
-                    const todayDow = (new Date().getDay() + 6) % 7; // JS Sun=0 → Mon=0
+                    const todayDow = (new Date().getDay() + 6) % 7;
                     const todayFocus = selectedSubject.completed_today || 0;
                     const targetHours = parseFloat(selectedSubject.target_hours || selectedSubject.targetHours) || 0;
                     const validHours = parseFloat(selectedSubject.valid_hours || selectedSubject.validHours) || 0;
-                    // Use the same locked daily goal formula for consistent heatmap intensity
-                    const dailyTarget = daysLeft >= 0 && targetHours > 0
-                      ? Math.max(0, (targetHours - validHours + todayFocus) / Math.max(1, daysLeft))
+                    
+                    const subjectDeadline = selectedSubject.deadline || (state.term ? state.term.endDate : null);
+                    const subjectDaysLeft = subjectDeadline ? getDaysLeft(new Date(), subjectDeadline) : 0;
+                    
+                    const dailyTarget = subjectDaysLeft >= 0 && targetHours > 0
+                      ? Math.max(0, (targetHours - validHours + todayFocus) / Math.max(1, subjectDaysLeft))
                       : 0;
-                    // Today's intensity based on how much of the daily target was completed
+                    
                     const todayIntensity = dailyTarget > 0
                       ? Math.min(0.95, 0.15 + (todayFocus / dailyTarget) * 0.8)
                       : todayFocus > 0 ? 0.75 : 0.15;

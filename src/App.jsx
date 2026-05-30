@@ -86,9 +86,9 @@ function AppContent() {
     localStorage.setItem('theme', next);
   };
 
-  const handleAddSubject = async (name, target) => {
+  const handleAddSubject = async (name, target, deadline) => {
     const newId = crypto.randomUUID();
-    const newSubject = { id: newId, name, target_hours: target, valid_hours: 0, carryover: 0 };
+    const newSubject = { id: newId, name, target_hours: target, valid_hours: 0, carryover: 0, deadline };
 
     updateState(prev => ({
       ...prev,
@@ -105,17 +105,18 @@ function AppContent() {
           user_id: userId,
           name: name,
           target_hours: target,
-          valid_hours: 0
+          valid_hours: 0,
+          deadline: deadline
         }
       });
       processSyncQueue();
     }
   };
 
-  const handleEditSubject = async (id, name, target) => {
+  const handleEditSubject = async (id, name, target, deadline) => {
     updateState(prev => ({
       ...prev,
-      subjects: prev.subjects.map(s => s.id === id ? { ...s, name, target_hours: target } : s)
+      subjects: prev.subjects.map(s => s.id === id ? { ...s, name, target_hours: target, deadline } : s)
     }));
     setActiveModal(null);
 
@@ -124,7 +125,7 @@ function AppContent() {
       await addActionToQueue({
         type: 'UPDATE_SUBJECT',
         subjectId: id,
-        payload: { name: name, target_hours: target }
+        payload: { name: name, target_hours: target, deadline }
       });
       processSyncQueue();
     }

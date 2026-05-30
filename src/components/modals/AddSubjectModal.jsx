@@ -3,10 +3,11 @@ import { useState } from 'react';
 export default function AddSubjectModal({ onClose, onAdd }) {
   const [name, setName] = useState('');
   const [target, setTarget] = useState('');
+  const [deadline, setDeadline] = useState('');
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    onAdd(name, parseFloat(target));
+    onAdd(name, parseFloat(target), deadline ? new Date(deadline).toISOString() : null);
   };
 
   return (
@@ -21,6 +22,10 @@ export default function AddSubjectModal({ onClose, onAdd }) {
           <div className="mb-9">
             <label htmlFor="target-hours" className="block text-sm text-text-secondary mb-3">Total Target Hours</label>
             <input type="number" id="target-hours" className="input-field" min="1" required placeholder="e.g. 100" value={target} onChange={e => setTarget(e.target.value)} />
+          </div>
+          <div className="mb-9">
+            <label htmlFor="subject-deadline" className="block text-sm text-text-secondary mb-3">Custom Deadline (Optional)</label>
+            <input type="date" id="subject-deadline" className="input-field" value={deadline} onChange={e => setDeadline(e.target.value)} />
           </div>
           <div className="flex justify-end gap-6 mt-12">
             <button type="button" className="text-btn" id="cancel-subject-btn" onClick={onClose}>Cancel</button>
