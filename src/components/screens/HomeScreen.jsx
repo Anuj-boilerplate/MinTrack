@@ -305,50 +305,6 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
                 </div>
               </section>
 
-              <div className="section-divider h-px my-8"></div>
-
-              <section className="detail-section">
-                <div className="flex items-center justify-between gap-4 mb-9">
-                  <h3 className="text-medium text-text-primary">This week</h3>
-                </div>
-                <div className="heatmap-grid" aria-label="Weekly activity heatmap">
-                  {(() => {
-                    const todayDow = (new Date().getDay() + 6) % 7;
-                    const todayFocus = selectedSubject.completed_today || 0;
-                    const targetHours = parseFloat(selectedSubject.target_hours || selectedSubject.targetHours) || 0;
-                    const validHours = parseFloat(selectedSubject.valid_hours || selectedSubject.validHours) || 0;
-                    
-                    const subjectDeadline = selectedSubject.deadline || (state.term ? state.term.endDate : null);
-                    const subjectDaysLeft = subjectDeadline ? getDaysLeft(new Date(), subjectDeadline) : 0;
-                    
-                    const dailyTarget = subjectDaysLeft >= 0 && targetHours > 0
-                      ? Math.max(0, (targetHours - validHours + todayFocus) / Math.max(1, subjectDaysLeft))
-                      : 0;
-                    
-                    const todayIntensity = dailyTarget > 0
-                      ? Math.min(0.95, 0.15 + (todayFocus / dailyTarget) * 0.8)
-                      : todayFocus > 0 ? 0.75 : 0.15;
-
-                    return ['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((label, index) => {
-                      // Only today has real data; past/future days show as empty
-                      const isToday = index === todayDow;
-                      const intensity = isToday ? todayIntensity : 0.10;
-                      return (
-                        <div
-                          key={index}
-                          className={`heatmap-cell${isToday ? ' heatmap-cell--today' : ''}`}
-                          style={{ '--heat': intensity.toFixed(2) }}
-                          title={isToday ? `Today: ${formatHoursToMins(todayFocus)} focused` : 'No data'}
-                        >
-                          <span>{label}</span>
-                        </div>
-                      );
-                    });
-                  })()}
-                </div>
-              </section>
-
-
             </>
           ) : (
             <section className="detail-empty">
