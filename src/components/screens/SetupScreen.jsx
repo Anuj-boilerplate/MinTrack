@@ -30,30 +30,15 @@ export default function SetupScreen() {
     }
   };
 
-  const handleImport = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const importedState = JSON.parse(event.target.result);
-        if (importedState.term && importedState.subjects) {
-          updateState(importedState);
-        } else {
-          alert('Invalid backup file format.');
-        }
-      } catch {
-        alert('Failed to parse backup file.');
-      }
-    };
-    reader.readAsText(file);
-  };
-
   return (
-    <div id="setup-screen" className="animate-[fadeIn_0.4s_ease-out]">
+    <div id="setup-screen" className="animate-[screenFade_0.6s_cubic-bezier(0.25,0.46,0.45,0.94)]">
       <div className="glass-panel max-w-[580px] mx-auto text-center">
-        <h1 className="text-4xl font-bold mb-3 tracking-tight">Welcome to MinTrack</h1>
-        <p className="text-text-secondary mb-6">Let's set up your academic term.</p>
+        <p className="text-tiny text-text-muted uppercase tracking-[0.28em] mb-5">Make every minute count.</p>
+        <span className="wordmark block mb-8">Mintrack</span>
+        
+        <h1 className="text-display mb-3 tracking-tight">Welcome</h1>
+        <p className="text-small text-text-secondary mb-12">Let&apos;s set up your academic term to get started.</p>
+        
         <form id="term-form" onSubmit={handleStartTerm} className="text-left">
           <div className="mb-9">
             <label htmlFor="term-start" className="block text-sm text-text-secondary mb-3">Start Date</label>
@@ -79,18 +64,6 @@ export default function SetupScreen() {
           </div>
           <button type="submit" className="primary-btn w-full">Start Term</button>
         </form>
-
-        <div className="mt-12 pt-12 border-t border-border-glass">
-          <p className="text-text-secondary mb-6">Or import existing data:</p>
-          <input 
-            type="file" 
-            id="import-file" 
-            accept=".json" 
-            className="hidden" 
-            onChange={handleImport}
-          />
-          <label htmlFor="import-file" className="secondary-btn">Import Backup</label>
-        </div>
       </div>
     </div>
   );
