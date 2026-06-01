@@ -1,21 +1,47 @@
 export const CHANGELOG = [
   {
+    version: '1.4.3',
+    date: '2026-06-01',
+    changes: [
+      {
+        title: "Subject Card Interactions",
+        description: "Added active pointer hover styling on all user-defined subject cards."
+      },
+      {
+        title: "Upgraded Pomodoro Settings",
+        description: "Refined the session modal with snappy preset radio cards, dynamic morph transitions, and holding auto-repeat steppers."
+      },
+      {
+        title: "Removed Weekly Heatmap",
+        description: "Removed the cosmetic activity heatmap. A new "
+      },
+      {
+        title: "Branded Setup Screen",
+        description: "Polished Setup Screen typography and integrated the official Mintrack wordmark and tags."
+      },
+      {
+        title: "Retired Legacy Backups",
+        description: "Removed redundant JSON import and export options, relying fully on secure cloud syncing."
+      }
+    ]
+  },
+  {
     version: '1.4.2',
     date: '2026-05-30',
-    changes:[
+    changes: [
       {
-      title: "Added Custom Deadlines",
-      description:"Be more in control of your tasks with the new 'Custom Deadlines' feature. The app will suggest you daily targets based on these deadlines allowing you to focus on what truly matters."
+        title: "Added Custom Deadlines",
+        description: "Be more in control of your tasks with the new 'Custom Deadlines' feature. The app will suggest you daily targets based on these deadlines allowing you to focus on what truly matters."
       }
     ]
   },
   {
     version: '1.4.1',
     date: '2026-05-19',
-    changes:[
+    changes: [
       {
-      title: "More Robust Offline Queing",
-      description:"Offline CRUD support is now extended to subjects as well, handled by an extremely robust request queing system."
+        title: "More Robust Offline Queing",
+        description: "Offline CRUD support is now extended to subjects as well, handled by an extremely robust request queing system."
       },
       {
         title: "Term Creation Issue Addressed",
