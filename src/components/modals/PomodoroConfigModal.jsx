@@ -1,187 +1,201 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, memo } from 'react';
 
-export default function PomodoroConfigModal({ onClose, onStart }) {
-  const [selectedPreset, setSelectedPreset] = useState('standard');
-  const [view, setView] = useState('presets'); // 'presets' or 'custom'
-  
-  // Custom saved preset states
-  const [customFocus, setCustomFocus] = useState(null);
-  const [customBreak, setCustomBreak] = useState(null);
-  const [customCycles, setCustomCycles] = useState(null);
-
-  // Unrestricted string states for typable textboxes
-  const [focusInput, setFocusInput] = useState('25');
-  const [breakInput, setBreakInput] = useState('5');
-  const [cyclesInput, setCyclesInput] = useState('4');
-
-  // Holding timers for stepper auto-repeat
+// ---------------------------------------------------------------------------
+// StepperRow — memo'd so only the row whose value changed re-renders
+// ---------------------------------------------------------------------------
+const StepperRow = memo(function StepperRow({ label, value, onChange, onBlur, onAdjust }) {
   const repeatTimeoutRef = useRef(null);
   const repeatIntervalRef = useRef(null);
 
-  // Viewport and Pane Refs for dynamic height tracking
+  const stopRepeat = useCallback(() => {
+    clearTimeout(repeatTimeoutRef.current);
+    clearInterval(repeatIntervalRef.current);
+  }, []);
+
+  const startRepeat = useCallback((amount) => {
+    stopRepeat();
+    onAdjust(amount);
+    repeatTimeoutRef.current = setTimeout(() => {
+      repeatIntervalRef.current = setInterval(() => onAdjust(amount), 85);
+    }, 380);
+  }, [onAdjust, stopRepeat]);
+
+  useEffect(() => stopRepeat, [stopRepeat]);
+
+  return (
+    <div className="stepper-row">
+      <span className="stepper-label">{label}</span>
+      <div className="stepper-control">
+        <button
+          type="button"
+          className="stepper-btn select-none"
+          onMouseDown={() => startRepeat(-1)}
+          onMouseUp={stopRepeat}
+          onMouseLeave={stopRepeat}
+          onTouchStart={() => startRepeat(-1)}
+          onTouchEnd={stopRepeat}
+        >−</button>
+        <input
+          type="number"
+          className="stepper-value"
+          value={value}
+          min="1"
+          onChange={(e) => onChange(e.target.value)}
+          onBlur={onBlur}
+        />
+        <button
+          type="button"
+          className="stepper-btn select-none"
+          onMouseDown={() => startRepeat(1)}
+          onMouseUp={stopRepeat}
+          onMouseLeave={stopRepeat}
+          onTouchStart={() => startRepeat(1)}
+          onTouchEnd={stopRepeat}
+        >+</button>
+      </div>
+    </div>
+  );
+});
+
+// ---------------------------------------------------------------------------
+// Module-level constants — zero per-render allocation
+// ---------------------------------------------------------------------------
+const PRESETS = {
+  standard: { focus: 25, breakTime: 5,  cycles: 4 },
+  deep:     { focus: 50, breakTime: 10, cycles: 4 },
+  ultradian:{ focus: 90, breakTime: 20, cycles: 2 },
+};
+
+const PRESET_LABELS = {
+  standard: 'Standard',
+  deep: 'Deep Work',
+  ultradian: 'Ultradian',
+};
+
+const PRESET_SUBTITLES = {
+  standard: '25/5 min • 4 sessions',
+  deep: '50/10 min • 4 sessions',
+  ultradian: '90/20 min • 2 sessions',
+};
+
+const clamp = (raw, fallback = 1) => Math.max(1, parseInt(raw) || fallback);
+
+// ---------------------------------------------------------------------------
+// PomodoroConfigModal
+// ---------------------------------------------------------------------------
+export default function PomodoroConfigModal({ onClose, onStart }) {
+  const [selectedPreset, setSelectedPreset] = useState('standard');
+  const [view, setView] = useState('presets'); // 'presets' | 'custom'
+  const [customPreset, setCustomPreset] = useState(null);
+
+  const [focusInput,  setFocusInput]  = useState('25');
+  const [breakInput,  setBreakInput]  = useState('5');
+  const [cyclesInput, setCyclesInput] = useState('4');
+
   const presetsPaneRef = useRef(null);
-  const customPaneRef = useRef(null);
+  const customPaneRef  = useRef(null);
   const [viewportHeight, setViewportHeight] = useState(350);
 
-  // Synchronize input states when selected preset changes
+  // Sync inputs when selected preset changes
   useEffect(() => {
-    if (selectedPreset === 'standard') {
-      setFocusInput('25');
-      setBreakInput('5');
-      setCyclesInput('4');
-    } else if (selectedPreset === 'deep') {
-      setFocusInput('50');
-      setBreakInput('10');
-      setCyclesInput('4');
-    } else if (selectedPreset === 'ultradian') {
-      setFocusInput('90');
-      setBreakInput('20');
-      setCyclesInput('2'); // Standard Ultradian uses 2 longer sessions
+    const preset = PRESETS[selectedPreset];
+    if (preset) {
+      setFocusInput(String(preset.focus));
+      setBreakInput(String(preset.breakTime));
+      setCyclesInput(String(preset.cycles));
     } else if (selectedPreset === 'custom') {
-      if (customFocus !== null) {
-        setFocusInput(String(customFocus));
-        setBreakInput(String(customBreak));
-        setCyclesInput(String(customCycles));
-      } else {
-        setFocusInput('25');
-        setBreakInput('5');
-        setCyclesInput('4');
-      }
+      const src = customPreset ?? PRESETS.standard;
+      setFocusInput(String(src.focus));
+      setBreakInput(String(src.breakTime));
+      setCyclesInput(String(src.cycles));
     }
-  }, [selectedPreset, customFocus, customBreak, customCycles]);
+  }, [selectedPreset, customPreset]);
 
-  // Seamless, dynamic height tracking using ResizeObserver to prevent any clipping on any screens
+  // ResizeObserver — only re-attaches when the visible pane changes
   useEffect(() => {
     const activeRef = view === 'presets' ? presetsPaneRef : customPaneRef;
-    if (activeRef.current) {
-      const handleResize = () => {
-        setViewportHeight(activeRef.current.offsetHeight || activeRef.current.scrollHeight);
-      };
-      
-      handleResize();
+    if (!activeRef.current) return;
 
-      const observer = new ResizeObserver(handleResize);
-      observer.observe(activeRef.current);
-      return () => observer.disconnect();
-    }
-  }, [view, selectedPreset, customFocus, customBreak, customCycles, focusInput, breakInput, cyclesInput]);
+    const measure = () => {
+      setViewportHeight(activeRef.current.offsetHeight || activeRef.current.scrollHeight);
+    };
 
-  // Adjust values with safe minimum boundary of 1
-  const adjustValue = (amount, field) => {
-    if (field === 'focus') {
-      setFocusInput((prev) => String(Math.max(1, (parseInt(prev) || 1) + amount)));
-    } else if (field === 'break') {
-      setBreakInput((prev) => String(Math.max(1, (parseInt(prev) || 1) + amount)));
-    } else if (field === 'cycles') {
-      setCyclesInput((prev) => String(Math.max(1, (parseInt(prev) || 1) + amount)));
-    }
-  };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(activeRef.current);
+    return () => observer.disconnect();
+  }, [view]);
 
-  // Auto-repeat triggers on long-press
-  const startRepeat = (amount, field) => {
-    stopRepeat();
-    adjustValue(amount, field);
-    repeatTimeoutRef.current = setTimeout(() => {
-      repeatIntervalRef.current = setInterval(() => {
-        adjustValue(amount, field);
-      }, 85);
-    }, 380);
-  };
+  // ---------------------------------------------------------------------------
+  // Stable adjust/blur handlers — named per-field, empty deps because
+  // useState setters are guaranteed stable references across renders.
+  // Replaces the factory pattern so JSX passes the same function reference
+  // every render → StepperRow.memo can bail out correctly.
+  // ---------------------------------------------------------------------------
+  const adjustFocus  = useCallback((d) => setFocusInput( (p) => String(Math.max(1, (parseInt(p) || 1) + d))), []);
+  const adjustBreak  = useCallback((d) => setBreakInput( (p) => String(Math.max(1, (parseInt(p) || 1) + d))), []);
+  const adjustCycles = useCallback((d) => setCyclesInput((p) => String(Math.max(1, (parseInt(p) || 1) + d))), []);
 
-  const stopRepeat = () => {
-    if (repeatTimeoutRef.current) clearTimeout(repeatTimeoutRef.current);
-    if (repeatIntervalRef.current) clearInterval(repeatIntervalRef.current);
-  };
+  const blurFocus  = useCallback(() => setFocusInput( (p) => p === '' ? '1' : String(clamp(p))), []);
+  const blurBreak  = useCallback(() => setBreakInput( (p) => p === '' ? '1' : String(clamp(p))), []);
+  const blurCycles = useCallback(() => setCyclesInput((p) => p === '' ? '1' : String(clamp(p))), []);
 
-  // Safe sanitization on input blur
-  const handleBlur = (field) => {
-    if (field === 'focus') {
-      setFocusInput((prev) => prev === '' ? '1' : String(Math.max(1, parseInt(prev) || 1)));
-    } else if (field === 'break') {
-      setBreakInput((prev) => prev === '' ? '1' : String(Math.max(1, parseInt(prev) || 1)));
-    } else if (field === 'cycles') {
-      setCyclesInput((prev) => prev === '' ? '1' : String(Math.max(1, parseInt(prev) || 1)));
-    }
-  };
+  // ---------------------------------------------------------------------------
+  // Event handlers — useCallback so referential identity is stable if ever
+  // passed through context or memoized children in the future.
+  // ---------------------------------------------------------------------------
+  const handleStartSession = useCallback(() => {
+    onStart({
+      focusLength: clamp(focusInput, 25),
+      breakLength: clamp(breakInput, 5),
+      cycles:      clamp(cyclesInput, 4),
+    });
+  }, [onStart, focusInput, breakInput, cyclesInput]);
 
-  // Submits the active preset configuration
-  const handleStartSession = () => {
-    const focusLength = Math.max(1, parseInt(focusInput) || 25);
-    const breakLength = Math.max(1, parseInt(breakInput) || 5);
-    const cycles = Math.max(1, parseInt(cyclesInput) || 4);
-    onStart({ focusLength, breakLength, cycles });
-  };
-
-  // Saves custom timer parameters and returns to presets list
-  const handleSaveCustom = (e) => {
+  const handleSaveCustom = useCallback((e) => {
     e.preventDefault();
-    const focus = Math.max(1, parseInt(focusInput) || 25);
-    const breakTime = Math.max(1, parseInt(breakInput) || 5);
-    const cyc = Math.max(1, parseInt(cyclesInput) || 4);
-    
-    setCustomFocus(focus);
-    setCustomBreak(breakTime);
-    setCustomCycles(cyc);
+    setCustomPreset({
+      focus:     clamp(focusInput, 25),
+      breakTime: clamp(breakInput, 5),
+      cycles:    clamp(cyclesInput, 4),
+    });
     setSelectedPreset('custom');
     setView('presets');
-  };
+  }, [focusInput, breakInput, cyclesInput]);
 
-  const handleSelectCustomCard = () => {
+  const handleSelectCustomCard = useCallback(() => {
     setSelectedPreset('custom');
     setView('custom');
-  };
-
-  const handleBackToPresets = () => {
-    setView('presets');
-    // If no custom settings were ever saved, default selected back to standard
-    if (customFocus === null) {
-      setTimeout(() => {
-        setSelectedPreset('standard');
-      }, 250);
-    }
-  };
-
-  // Cleanup repeat timers on unmount
-  useEffect(() => {
-    return () => stopRepeat();
   }, []);
+
+  const handleBackToPresets = useCallback(() => {
+    setView('presets');
+    if (customPreset === null) {
+      setTimeout(() => setSelectedPreset('standard'), 250);
+    }
+  }, [customPreset]);
 
   return (
     <div id="pomodoro-modal" className="modal-backdrop" onClick={onClose}>
       <div className="modal-pane iridescent-border" onClick={e => e.stopPropagation()}>
         <div className="modal-slider-viewport" style={{ height: `${viewportHeight}px` }}>
-          
-          {/* Preset Picker View */}
+
+          {/* ── Preset Picker View ── */}
           <div ref={presetsPaneRef} className={`modal-slide-pane ${view === 'presets' ? 'active-left' : 'inactive-left'}`}>
             <h2 className="text-medium mb-6 text-text-primary">Configure Session</h2>
-            
+
             <div className="radio-cards-grid">
-              <button
-                type="button"
-                className={`radio-card ${selectedPreset === 'standard' ? 'selected' : ''}`}
-                onClick={() => setSelectedPreset('standard')}
-              >
-                <span className="radio-card-title">Standard</span>
-                <span className="radio-card-subtitle">25/5 min • 4 sessions</span>
-              </button>
-
-              <button
-                type="button"
-                className={`radio-card ${selectedPreset === 'deep' ? 'selected' : ''}`}
-                onClick={() => setSelectedPreset('deep')}
-              >
-                <span className="radio-card-title">Deep Work</span>
-                <span className="radio-card-subtitle">50/10 min • 4 sessions</span>
-              </button>
-
-              <button
-                type="button"
-                className={`radio-card ${selectedPreset === 'ultradian' ? 'selected' : ''}`}
-                onClick={() => setSelectedPreset('ultradian')}
-              >
-                <span className="radio-card-title">Ultradian</span>
-                <span className="radio-card-subtitle">90/20 min • 2 sessions</span>
-              </button>
+              {['standard', 'deep', 'ultradian'].map((key) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={`radio-card ${selectedPreset === key ? 'selected' : ''}`}
+                  onClick={() => setSelectedPreset(key)}
+                >
+                  <span className="radio-card-title">{PRESET_LABELS[key]}</span>
+                  <span className="radio-card-subtitle">{PRESET_SUBTITLES[key]}</span>
+                </button>
+              ))}
 
               <button
                 type="button"
@@ -190,10 +204,9 @@ export default function PomodoroConfigModal({ onClose, onStart }) {
               >
                 <span className="radio-card-title">Custom</span>
                 <span className="radio-card-subtitle">
-                  {customFocus !== null 
-                    ? `${customFocus}/${customBreak} min • ${customCycles} sessions` 
-                    : 'Set custom times'
-                  }
+                  {customPreset !== null
+                    ? `${customPreset.focus}/${customPreset.breakTime} min • ${customPreset.cycles} sessions`
+                    : 'Set custom times'}
                 </span>
               </button>
             </div>
@@ -204,7 +217,7 @@ export default function PomodoroConfigModal({ onClose, onStart }) {
             </div>
           </div>
 
-          {/* Custom Editor View */}
+          {/* ── Custom Editor View ── */}
           <div ref={customPaneRef} className={`modal-slide-pane ${view === 'custom' ? 'active-right' : 'inactive-right'}`}>
             <button type="button" className="modal-back-btn" onClick={handleBackToPresets}>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -218,104 +231,30 @@ export default function PomodoroConfigModal({ onClose, onStart }) {
             <p className="text-tiny text-text-muted mb-8">Custom Timer</p>
 
             <form onSubmit={handleSaveCustom}>
-              <div className="stepper-row">
-                <span className="stepper-label">Focus duration</span>
-                <div className="stepper-control">
-                  <button
-                    type="button"
-                    className="stepper-btn select-none"
-                    onMouseDown={() => startRepeat(-1, 'focus')}
-                    onMouseUp={stopRepeat}
-                    onMouseLeave={stopRepeat}
-                    onTouchStart={() => startRepeat(-1, 'focus')}
-                    onTouchEnd={stopRepeat}
-                  >−</button>
-                  <input
-                    type="number"
-                    className="stepper-value"
-                    value={focusInput}
-                    min="1"
-                    onChange={(e) => setFocusInput(e.target.value)}
-                    onBlur={() => handleBlur('focus')}
-                  />
-                  <button
-                    type="button"
-                    className="stepper-btn select-none"
-                    onMouseDown={() => startRepeat(1, 'focus')}
-                    onMouseUp={stopRepeat}
-                    onMouseLeave={stopRepeat}
-                    onTouchStart={() => startRepeat(1, 'focus')}
-                    onTouchEnd={stopRepeat}
-                  >+</button>
-                </div>
-              </div>
-
-              <div className="stepper-row">
-                <span className="stepper-label">Break duration</span>
-                <div className="stepper-control">
-                  <button
-                    type="button"
-                    className="stepper-btn select-none"
-                    onMouseDown={() => startRepeat(-1, 'break')}
-                    onMouseUp={stopRepeat}
-                    onMouseLeave={stopRepeat}
-                    onTouchStart={() => startRepeat(-1, 'break')}
-                    onTouchEnd={stopRepeat}
-                  >−</button>
-                  <input
-                    type="number"
-                    className="stepper-value"
-                    value={breakInput}
-                    min="1"
-                    onChange={(e) => setBreakInput(e.target.value)}
-                    onBlur={() => handleBlur('break')}
-                  />
-                  <button
-                    type="button"
-                    className="stepper-btn select-none"
-                    onMouseDown={() => startRepeat(1, 'break')}
-                    onMouseUp={stopRepeat}
-                    onMouseLeave={stopRepeat}
-                    onTouchStart={() => startRepeat(1, 'break')}
-                    onTouchEnd={stopRepeat}
-                  >+</button>
-                </div>
-              </div>
-
-              <div className="stepper-row">
-                <span className="stepper-label">Sessions</span>
-                <div className="stepper-control">
-                  <button
-                    type="button"
-                    className="stepper-btn select-none"
-                    onMouseDown={() => startRepeat(-1, 'cycles')}
-                    onMouseUp={stopRepeat}
-                    onMouseLeave={stopRepeat}
-                    onTouchStart={() => startRepeat(-1, 'cycles')}
-                    onTouchEnd={stopRepeat}
-                  >−</button>
-                  <input
-                    type="number"
-                    className="stepper-value"
-                    value={cyclesInput}
-                    min="1"
-                    onChange={(e) => setCyclesInput(e.target.value)}
-                    onBlur={() => handleBlur('cycles')}
-                  />
-                  <button
-                    type="button"
-                    className="stepper-btn select-none"
-                    onMouseDown={() => startRepeat(1, 'cycles')}
-                    onMouseUp={stopRepeat}
-                    onMouseLeave={stopRepeat}
-                    onTouchStart={() => startRepeat(1, 'cycles')}
-                    onTouchEnd={stopRepeat}
-                  >+</button>
-                </div>
-              </div>
+              <StepperRow
+                label="Focus duration"
+                value={focusInput}
+                onChange={setFocusInput}
+                onBlur={blurFocus}
+                onAdjust={adjustFocus}
+              />
+              <StepperRow
+                label="Break duration"
+                value={breakInput}
+                onChange={setBreakInput}
+                onBlur={blurBreak}
+                onAdjust={adjustBreak}
+              />
+              <StepperRow
+                label="Sessions"
+                value={cyclesInput}
+                onChange={setCyclesInput}
+                onBlur={blurCycles}
+                onAdjust={adjustCycles}
+              />
 
               <p className="text-tiny text-text-secondary text-center mt-6">
-                Preview: {cyclesInput === '' ? '1' : cyclesInput} sessions × {focusInput === '' ? '1' : focusInput}m focus / {breakInput === '' ? '1' : breakInput}m break
+                Preview: {cyclesInput || '1'} sessions × {focusInput || '1'}m focus / {breakInput || '1'}m break
               </p>
 
               <div className="flex justify-end gap-6 mt-8">
