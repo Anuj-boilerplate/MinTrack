@@ -1,5 +1,19 @@
 export const CHANGELOG = [
   {
+    version: '1.4.4',
+    date: '2026-06-03',
+    changes: [
+      {
+        title: "Custom Date Picker",
+        description: "Replaced the browser's native date picker with a fully custom calendar, complete with month navigation, current day highlight, and smooth animations."
+      },
+      {
+        title: "Target Hours Stepper",
+        description: "Added holding auto-repeat stepper buttons to the Target Hours field in the Add and Edit Subject modals, matching the snappy interaction feel of the Pomodoro session configurator."
+      }
+    ]
+  },
+  {
     version: '1.4.3',
     date: '2026-06-01',
     changes: [
