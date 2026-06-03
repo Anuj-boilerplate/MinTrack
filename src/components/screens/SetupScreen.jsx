@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStateContext } from '../../contexts/StateContext';
 import { addActionToQueue, processSyncQueue } from '../../lib/syncQueue';
+import DatePicker from '../DatePicker';
 
 export default function SetupScreen() {
   const { updateState, userId } = useStateContext();
@@ -42,24 +43,22 @@ export default function SetupScreen() {
         <form id="term-form" onSubmit={handleStartTerm} className="text-left">
           <div className="mb-9">
             <label htmlFor="term-start" className="block text-sm text-text-secondary mb-3">Start Date</label>
-            <input 
-              type="date" 
+            <DatePicker 
               id="term-start" 
-              className="input-field"
               required 
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
+              placeholder="e.g. 2026-06-01"
             />
           </div>
           <div className="mb-9">
             <label htmlFor="term-end" className="block text-sm text-text-secondary mb-3">End Date</label>
-            <input 
-              type="date" 
+            <DatePicker 
               id="term-end" 
-              className="input-field"
               required 
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
+              placeholder="e.g. 2026-10-31"
             />
           </div>
           <button type="submit" className="primary-btn w-full">Start Term</button>
