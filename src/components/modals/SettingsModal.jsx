@@ -1,8 +1,9 @@
-import { useStateContext } from '../../contexts/StateContext';
+import { useStateContext, useUserContext } from '../../contexts/StateContext';
 import { addActionToQueue, processSyncQueue } from '../../lib/syncQueue';
 
 export default function SettingsModal({ onClose }) {
-  const { updateState, logout, userId } = useStateContext();
+  const { updateState } = useStateContext();
+  const { logout, userId } = useUserContext();
 
   const handleClearData = async () => {
     if (!confirm('Are you sure you want to completely erase all data? This cannot be undone!')) return;

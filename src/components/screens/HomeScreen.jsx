@@ -1,21 +1,116 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo, memo } from 'react';
 import { useStateContext } from '../../contexts/StateContext';
 import { getDaysLeft, formatHoursToMins, formatISODateForDisplay } from '../../utils';
+
+// ---------------------------------------------------------------------------
+// SubjectCard — memo'd child component to prevent redundant card re-renders
+// ---------------------------------------------------------------------------
+const SubjectCard = memo(function SubjectCard({ sub, isSelected, onSelect, onOpenModal, termEndDate }) {
+  const today = new Date();
+  const targetHours = parseFloat(sub.target_hours) || 0;
+  const validHours = parseFloat(sub.valid_hours) || 0;
+  const pct = targetHours > 0 ? Math.min((validHours / targetHours) * 100, 100) : 0;
+
+  const subDeadline = sub.deadline || termEndDate;
+  const subDaysLeft = subDeadline ? getDaysLeft(today, subDeadline) : 0;
+  const isSubCompleted = validHours >= targetHours;
+  const isSubOverdue = subDaysLeft < 0 && !isSubCompleted;
+
+  const handleCardClick = useCallback((e) => {
+    e.stopPropagation();
+    onSelect(sub.id);
+  }, [sub.id, onSelect]);
+
+  const handleEditClick = useCallback((e) => {
+    e.stopPropagation();
+    onOpenModal('editSubject', sub.id);
+  }, [sub.id, onOpenModal]);
+
+  const handleStartSessionClick = useCallback((e) => {
+    e.stopPropagation();
+    onOpenModal('pomodoro', sub.id);
+  }, [sub.id, onOpenModal]);
+
+  return (
+    <article
+      className={`subject-card glass-surface ${isSelected ? 'selected' : ''}`}
+      onClick={handleCardClick}
+    >
+      <div className="flex justify-between items-start gap-4 mb-12">
+        <div className="min-w-0">
+          <button type="button" className="subject-select" onClick={handleCardClick}>
+            <span className="text-medium text-text-primary block truncate">{sub.name}</span>
+          </button>
+          <p className="text-tiny text-text-muted mt-3">{formatHoursToMins(validHours)} of {targetHours}h complete</p>
+          {sub.deadline && (
+            <p className={`text-tiny mt-2 ${subDaysLeft < 0 && !isSubCompleted ? 'text-[#b86d60]' : 'text-text-muted opacity-80'}`}>
+              Deadline: {formatISODateForDisplay(sub.deadline)}
+            </p>
+          )}
+        </div>
+
+        <button
+          className="subject-edit-button"
+          title="Edit Subject"
+          onClick={handleEditClick}
+          type="button"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M12 20h9"></path>
+            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
+          </svg>
+        </button>
+      </div>
+
+      <div className="subject-progress-block">
+        <div className="progress-track">
+          <div className="progress-fill" style={{ width: `${pct}%` }}></div>
+        </div>
+      </div>
+
+      <div className="mt-auto pt-12">
+        {isSubCompleted ? (
+          <button className="session-launch-btn w-full opacity-70 cursor-not-allowed text-[#d3a36c] border-[rgba(211,163,108,0.3)]" disabled type="button">
+            Completed
+          </button>
+        ) : isSubOverdue ? (
+          <button className="session-launch-btn w-full opacity-80 cursor-not-allowed bg-[rgba(184,109,96,0.15)] text-[#b86d60] border-[rgba(184,109,96,0.3)]" disabled type="button">
+            Overdue
+          </button>
+        ) : subDaysLeft >= 0 ? (
+          <button className="session-launch-btn w-full" onClick={handleStartSessionClick} type="button">
+            Start Session
+          </button>
+        ) : (
+          <button className="session-launch-btn w-full opacity-60 cursor-not-allowed" disabled type="button">
+            Finished
+          </button>
+        )}
+      </div>
+    </article>
+  );
+}, (prevProps, nextProps) => {
+  return prevProps.sub === nextProps.sub &&
+         prevProps.isSelected === nextProps.isSelected &&
+         prevProps.termEndDate === nextProps.termEndDate;
+});
 
 export default function HomeScreen({ onOpenModal, toggleTheme }) {
   const { state } = useStateContext();
   const [selectedSubjectId, setSelectedSubjectId] = useState(null);
+  const [prevSubjects, setPrevSubjects] = useState(state.subjects);
 
-  useEffect(() => {
+  // Derived-state pattern (React docs recommended): synchronize selectedSubjectId
+  // with the subjects list during render rather than in a useEffect, which would
+  // add a wasted extra render cycle after every subjects change.
+  if (state.subjects !== prevSubjects) {
+    setPrevSubjects(state.subjects);
     if (!state.subjects.length) {
       setSelectedSubjectId(null);
-      return;
-    }
-
-    if (selectedSubjectId !== null && !state.subjects.some((subject) => subject.id === selectedSubjectId)) {
+    } else if (selectedSubjectId !== null && !state.subjects.some((subject) => subject.id === selectedSubjectId)) {
       setSelectedSubjectId(null);
     }
-  }, [selectedSubjectId, state.subjects]);
+  }
 
   useEffect(() => {
     const handleGlobalClick = (e) => {
@@ -30,41 +125,62 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
     return () => window.removeEventListener('click', handleGlobalClick);
   }, []);
 
-  const today = new Date();
-  const daysLeft = state.term ? getDaysLeft(today, state.term.endDate) : 0;
+  // daysLeft is intentionally not memoized — it's a single cheap date call and
+  // must read a fresh Date() on every render to stay accurate across midnight.
+  const daysLeft = state.term ? getDaysLeft(new Date(), state.term.endDate) : 0;
   const isTermEnded = daysLeft < 0;
 
-  let totalTarget = 0;
-  let totalValid = 0;
-  let dailyTargetRequired = 0;
-  let dailyTargetCompleted = 0;
+  // Memoized aggregate calculations
+  const { totalTarget, totalValid, dailyTargetRequired, dailyTargetCompleted, termPct, dailyPct } = useMemo(() => {
+    let targetAccumulator = 0;
+    let validAccumulator = 0;
+    let dailyTargetReqAccumulator = 0;
+    let dailyTargetCompAccumulator = 0;
+    
+    const todayVal = new Date();
 
-  state.subjects.forEach((sub) => {
-    const targetHours = parseFloat(sub.target_hours || sub.targetHours) || 0;
-    const validHours = parseFloat(sub.valid_hours || sub.validHours) || 0;
-    const completedToday = sub.completed_today || 0;
-    totalTarget += targetHours;
-    totalValid += validHours;
+    state.subjects.forEach((sub) => {
+      const targetHours = parseFloat(sub.target_hours) || 0;
+      const validHours = parseFloat(sub.valid_hours) || 0;
+      const completedToday = sub.completed_today || 0;
+      targetAccumulator += targetHours;
+      validAccumulator += validHours;
 
-    const subjectDeadline = sub.deadline || (state.term ? state.term.endDate : null);
-    if (subjectDeadline) {
-      const subjectDaysLeft = getDaysLeft(today, subjectDeadline);
-      if (subjectDaysLeft >= 0) {
-        const todayGoal = Math.max(0, (targetHours - validHours + completedToday) / Math.max(1, subjectDaysLeft) + (sub.carryover || 0));
-        dailyTargetRequired += todayGoal;
+      const subjectDeadline = sub.deadline || (state.term ? state.term.endDate : null);
+      if (subjectDeadline) {
+        const subjectDaysLeft = getDaysLeft(todayVal, subjectDeadline);
+        if (subjectDaysLeft >= 0) {
+          const todayGoal = Math.max(0, (targetHours - validHours + completedToday) / Math.max(1, subjectDaysLeft) + (sub.carryover || 0));
+          dailyTargetReqAccumulator += todayGoal;
+        }
+        dailyTargetCompAccumulator += completedToday;
       }
-      dailyTargetCompleted += completedToday;
-    }
-  });
+    });
 
-  const termPct = totalTarget > 0 ? Math.min((totalValid / totalTarget) * 100, 100) : 0;
-  const dailyPct = dailyTargetRequired > 0 ? Math.min((dailyTargetCompleted / dailyTargetRequired) * 100, 100) : 0;
-  const selectedSubject = state.subjects.find((subject) => subject.id === selectedSubjectId) ?? null;
+    const calculatedTermPct = targetAccumulator > 0 ? Math.min((validAccumulator / targetAccumulator) * 100, 100) : 0;
+    const calculatedDailyPct = dailyTargetReqAccumulator > 0 ? Math.min((dailyTargetCompAccumulator / dailyTargetReqAccumulator) * 100, 100) : 0;
 
-  let selectedMetrics = null;
-  if (selectedSubject) {
-    const targetHours = parseFloat(selectedSubject.target_hours || selectedSubject.targetHours) || 0;
-    const validHours = parseFloat(selectedSubject.valid_hours || selectedSubject.validHours) || 0;
+    return {
+      totalTarget: targetAccumulator,
+      totalValid: validAccumulator,
+      dailyTargetRequired: dailyTargetReqAccumulator,
+      dailyTargetCompleted: dailyTargetCompAccumulator,
+      termPct: calculatedTermPct,
+      dailyPct: calculatedDailyPct
+    };
+  }, [state.subjects, state.term]);
+
+  const selectedSubject = useMemo(() => {
+    return state.subjects.find((subject) => subject.id === selectedSubjectId) ?? null;
+  }, [state.subjects, selectedSubjectId]);
+
+  // Memoized metrics for the selected subject detail sidebar panel
+  const selectedMetrics = useMemo(() => {
+    if (!selectedSubject) return null;
+
+    const todayVal = new Date();
+    const targetHours = parseFloat(selectedSubject.target_hours) || 0;
+    const validHours = parseFloat(selectedSubject.valid_hours) || 0;
     const todayFocus = selectedSubject.completed_today || 0;
     
     const subjectDeadline = selectedSubject.deadline || (state.term ? state.term.endDate : null);
@@ -73,7 +189,7 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
     let isOverdue = false;
 
     if (subjectDeadline) {
-      const subjectDaysLeft = getDaysLeft(today, subjectDeadline);
+      const subjectDaysLeft = getDaysLeft(todayVal, subjectDeadline);
       if (subjectDaysLeft >= 0) {
         todayGoal = Math.max(0, (targetHours - validHours + todayFocus) / Math.max(1, subjectDaysLeft) + (selectedSubject.carryover || 0));
       } else {
@@ -81,7 +197,7 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
       }
     }
 
-    selectedMetrics = {
+    return {
       progressPct: targetHours > 0 ? Math.min((validHours / targetHours) * 100, 100) : 0,
       todayFocus: formatHoursToMins(todayFocus),
       todayGoal: formatHoursToMins(todayGoal),
@@ -90,7 +206,7 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
       isCompleted,
       isOverdue
     };
-  }
+  }, [selectedSubject, state.term]);
 
   const overviewCopy = isTermEnded
     ? 'The term has settled. What remains here is what was sustained.'
@@ -178,90 +294,16 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
           </div>
 
           <div className="subject-grid">
-            {state.subjects.map((sub) => {
-              const targetHours = parseFloat(sub.target_hours || sub.targetHours) || 0;
-              const validHours = parseFloat(sub.valid_hours || sub.validHours) || 0;
-              const pct = targetHours > 0 ? Math.min((validHours / targetHours) * 100, 100) : 0;
-
-              return (
-                <article
-                  key={sub.id}
-                  className={`subject-card glass-surface ${selectedSubjectId === sub.id ? 'selected' : ''}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedSubjectId(sub.id);
-                  }}
-                >
-                  <div className="flex justify-between items-start gap-4 mb-12">
-                    <div className="min-w-0">
-                      <button type="button" className="subject-select" onClick={() => setSelectedSubjectId(sub.id)}>
-                        <span className="text-medium text-text-primary block truncate">{sub.name}</span>
-                      </button>
-                      <p className="text-tiny text-text-muted mt-3">{formatHoursToMins(validHours)} of {targetHours}h complete</p>
-                      {sub.deadline && (
-                        <p className={`text-tiny mt-2 ${getDaysLeft(today, sub.deadline) < 0 && validHours < targetHours ? 'text-[#b86d60]' : 'text-text-muted opacity-80'}`}>
-                          Deadline: {formatISODateForDisplay(sub.deadline)}
-                        </p>
-                      )}
-                    </div>
-
-                    <button
-                      className="subject-edit-button"
-                      title="Edit Subject"
-                      onClick={() => onOpenModal('editSubject', sub.id)}
-                      type="button"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M12 20h9"></path>
-                        <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
-                      </svg>
-                    </button>
-                  </div>
-
-                  <div className="subject-progress-block">
-                    <div className="progress-track">
-                      <div className="progress-fill" style={{ width: `${pct}%` }}></div>
-                    </div>
-                  </div>
-
-                  <div className="mt-auto pt-12">
-                    {(() => {
-                      const subDeadline = sub.deadline || (state.term ? state.term.endDate : null);
-                      const subDaysLeft = subDeadline ? getDaysLeft(today, subDeadline) : 0;
-                      const isSubCompleted = validHours >= targetHours;
-                      const isSubOverdue = subDaysLeft < 0 && !isSubCompleted;
-
-                      if (isSubCompleted) {
-                        return (
-                          <button className="session-launch-btn w-full opacity-70 cursor-not-allowed text-[#d3a36c] border-[rgba(211,163,108,0.3)]" disabled type="button">
-                            Completed
-                          </button>
-                        );
-                      }
-                      if (isSubOverdue) {
-                        return (
-                          <button className="session-launch-btn w-full opacity-80 cursor-not-allowed bg-[rgba(184,109,96,0.15)] text-[#b86d60] border-[rgba(184,109,96,0.3)]" disabled type="button">
-                            Overdue
-                          </button>
-                        );
-                      }
-                      if (subDaysLeft >= 0) {
-                        return (
-                          <button className="session-launch-btn w-full" onClick={() => onOpenModal('pomodoro', sub.id)} type="button">
-                            Start Session
-                          </button>
-                        );
-                      }
-                      return (
-                        <button className="session-launch-btn w-full opacity-60 cursor-not-allowed" disabled type="button">
-                          Finished
-                        </button>
-                      );
-                    })()}
-                  </div>
-                </article>
-              );
-            })}
+            {state.subjects.map((sub) => (
+              <SubjectCard
+                key={sub.id}
+                sub={sub}
+                isSelected={selectedSubjectId === sub.id}
+                onSelect={setSelectedSubjectId}
+                onOpenModal={onOpenModal}
+                termEndDate={state.term?.endDate}
+              />
+            ))}
           </div>
         </section>
 

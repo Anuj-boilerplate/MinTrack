@@ -84,14 +84,14 @@ async function processSessionSyncQueue() {
   for (const key of keys) {
     const session = await sessionQueue.getItem(key);
     
-    const { error } = await supabase.from('sessions').insert({
+    const { error } = await supabase.from('sessions').upsert({
       id: session.id,
       subject_id: session.subject_id,
       start_time: session.start_time,
       end_time: session.end_time,
       duration_minutes: session.duration_minutes,
       is_discarded: session.is_discarded
-    });
+    }, { onConflict: 'id' });
 
     if (!error) {
       if (!session.is_discarded && session.new_valid_hours !== undefined) {
