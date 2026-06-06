@@ -1,7 +1,7 @@
 import { useCallback, useState, useEffect } from 'react';
 import { supabase, supabaseConfigError } from './lib/supabaseClient';
 import Auth from './components/Auth';
-import { StateProvider, useStateContext } from './contexts/StateContext';
+import { StateProvider, useStateContext, useUserContext } from './contexts/StateContext';
 import { useTimer } from './hooks/useTimer';
 import { addSessionToQueue, processSyncQueue, removeSessionsForSubject, addActionToQueue } from './lib/syncQueue';
 
@@ -21,9 +21,22 @@ import { APP_VERSION } from './config';
 
 import './index.css';
 
+// Debounced wrapper — batches rapid post-action sync triggers into one call.
+// The 60s interval and the online listener in useEffect use processSyncQueue directly
+// since those are intentional timed sweeps, not user-action bursts.
+let _syncDebounceTimer = null;
+function scheduleSyncQueue() {
+  if (_syncDebounceTimer) clearTimeout(_syncDebounceTimer);
+  _syncDebounceTimer = setTimeout(() => {
+    _syncDebounceTimer = null;
+    processSyncQueue();
+  }, 600);
+}
+
 // The inner app that has access to the StateContext
 function AppContent() {
-  const { state, updateState, loading, userId } = useStateContext();
+  const { state, updateState, loading } = useStateContext();
+  const { userId } = useUserContext();
   const timer = useTimer(state, updateState);
 
   const [activeModal, setActiveModal] = useState(() => (
@@ -79,12 +92,16 @@ function AppContent() {
     handleStopSession();
   }, [handleStopSession, timer.isDone, state.activeSession]);
 
-  const toggleTheme = () => {
-    let current = document.documentElement.getAttribute('data-theme') || 'dark';
-    let next = current === 'dark' ? 'light' : 'dark';
+  const toggleTheme = useCallback(() => {
+    const current = document.documentElement.getAttribute('data-theme') || 'dark';
+    const next = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('theme', next);
-  };
+  }, []);
+
+  const handleOpenModal = useCallback((type, subjectId = null) => {
+    setActiveModal({ type, subjectId });
+  }, []);
 
   const handleAddSubject = async (name, target, deadline) => {
     const newId = crypto.randomUUID();
@@ -109,7 +126,7 @@ function AppContent() {
           deadline: deadline
         }
       });
-      processSyncQueue();
+      scheduleSyncQueue();
     }
   };
 
@@ -127,7 +144,7 @@ function AppContent() {
         subjectId: id,
         payload: { name: name, target_hours: target, deadline }
       });
-      processSyncQueue();
+      scheduleSyncQueue();
     }
   };
 
@@ -143,7 +160,7 @@ function AppContent() {
           type: 'DELETE_SUBJECT',
           subjectId: id
         });
-        processSyncQueue();
+        scheduleSyncQueue();
       }
     }
   };
@@ -172,7 +189,7 @@ function AppContent() {
     });
 
     // We still call processSyncQueue but the queue handles it
-    processSyncQueue();
+    scheduleSyncQueue();
   };
 
   const handleSaveSession = async (data) => {
@@ -197,7 +214,7 @@ function AppContent() {
       new_valid_hours: newValidHours
     });
 
-    processSyncQueue();
+    scheduleSyncQueue();
   };
 
   const handleDiscardSession = async (data) => {
@@ -219,7 +236,7 @@ function AppContent() {
         <TimerScreen timer={timer} onStop={handleStopSession} />
       ) : (
         <HomeScreen
-          onOpenModal={(type, subjectId = null) => setActiveModal({ type, subjectId })}
+          onOpenModal={handleOpenModal}
           toggleTheme={toggleTheme}
         />
       )}

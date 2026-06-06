@@ -43,33 +43,33 @@
   }
 
   [data-theme="light"] {
-    --bg-main: #f7f2ec;
-    --bg-secondary: #f0e8e0;
-    --bg-gradient-1: radial-gradient(circle at top left, rgba(238, 210, 183, 0.55), transparent 36%);
-    --bg-gradient-2: radial-gradient(circle at 82% 15%, rgba(234, 188, 151, 0.34), transparent 28%);
-    --bg-glass: rgba(255, 255, 255, 0.58);
-    --bg-glass-strong: rgba(255, 255, 255, 0.66);
-    --bg-glass-recessed: rgba(255, 255, 255, 0.42);
-    --border-glass: rgba(255, 255, 255, 0.78);
-    --border-glass-bright: rgba(255, 255, 255, 0.9);
-    --text-primary: #231b17;
-    --text-secondary: rgba(52, 39, 32, 0.72);
-    --text-muted: rgba(52, 39, 32, 0.48);
-    --accent: #c9714f;
-    --accent-soft: #dfa06a;
-    --accent-glow: rgba(201, 113, 79, 0.18);
-    --glass-shadow: rgba(105, 81, 60, 0.08);
-    --glass-shadow-strong: rgba(105, 81, 60, 0.12);
-    --input-bg: rgba(255, 255, 255, 0.38);
-    --btn-secondary-bg: rgba(255, 255, 255, 0.48);
-    --btn-secondary-hover: rgba(255, 255, 255, 0.7);
-    --modal-overlay: transparent;
-    --card-shadow-hover: rgba(120, 93, 67, 0.16);
-    --input-border: rgba(255, 255, 255, 0.72);
+    --bg-main: #fdfbf7;
+    --bg-secondary: #f6efe4;
+    --bg-gradient-1: radial-gradient(circle at top left, rgba(234, 188, 151, 0.15), transparent 50%);
+    --bg-gradient-2: radial-gradient(circle at 82% 15%, rgba(206, 132, 97, 0.06), transparent 35%);
+    --bg-glass: rgba(255, 255, 255, 0.82);
+    --bg-glass-strong: #ffffff;
+    --bg-glass-recessed: rgba(78, 53, 38, 0.03);
+    --border-glass: rgba(78, 53, 38, 0.08);
+    --border-glass-bright: rgba(78, 53, 38, 0.15);
+    --text-primary: #2c2520;
+    --text-secondary: #5e5248;
+    --text-muted: #8c7e73;
+    --accent: #bc623d;
+    --accent-soft: #d58962;
+    --accent-glow: rgba(188, 98, 61, 0.06);
+    --glass-shadow: rgba(78, 53, 38, 0.04);
+    --glass-shadow-strong: rgba(78, 53, 38, 0.07);
+    --input-bg: rgba(255, 255, 255, 0.9);
+    --btn-secondary-bg: rgba(78, 53, 38, 0.04);
+    --btn-secondary-hover: rgba(78, 53, 38, 0.07);
+    --modal-overlay: rgba(0, 0, 0, 0.15);
+    --card-shadow-hover: rgba(78, 53, 38, 0.09);
+    --input-border: rgba(78, 53, 38, 0.12);
     --date-filter: none;
-    --progress-bg: rgba(143, 112, 89, 0.12);
-    --surface-highlight: rgba(255, 255, 255, 0.24);
-    --surface-ground: rgba(78, 53, 38, 0.08);
+    --progress-bg: rgba(78, 53, 38, 0.06);
+    --surface-highlight: rgba(255, 255, 255, 0.4);
+    --surface-ground: rgba(78, 53, 38, 0.04);
   }
 
   * {
@@ -123,15 +123,20 @@
     margin: 0 auto;
     padding: 64px;
     position: relative;
-    transition: opacity 350ms var(--water-ease), filter 350ms var(--water-ease), transform 350ms var(--water-ease);
+  }
+
+  #home-screen,
+  #setup-screen,
+  #timer-screen {
+    transition: opacity 300ms var(--water-ease), transform 300ms var(--water-ease);
+    will-change: opacity, transform;
   }
 
   .app-shell.modal-active > #home-screen,
   .app-shell.modal-active > #setup-screen,
   .app-shell.modal-active > #timer-screen {
-    filter: blur(14px) saturate(0.88);
-    opacity: 0.7;
-    transform: scale(0.992);
+    opacity: 0.6;
+    transform: scale(0.985);
     pointer-events: none;
   }
 
@@ -518,34 +523,6 @@
     color: var(--text-primary);
   }
 
-  .heatmap-grid {
-    display: grid;
-    grid-template-columns: repeat(7, minmax(0, 1fr));
-    gap: 10px;
-  }
-
-  .heatmap-cell {
-    aspect-ratio: 1 / 1;
-    border-radius: 18px;
-    background: linear-gradient(180deg, rgba(255, 255, 255, 0.1), transparent), rgba(207, 125, 87, calc(var(--heat) * 0.52));
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    display: flex;
-    align-items: flex-end;
-    justify-content: flex-start;
-    padding: 20px;
-    color: rgba(255, 255, 255, 0.78);
-    font-size: var(--tiny-size);
-  }
-
-  [data-theme="light"] .heatmap-cell {
-    color: rgba(35, 27, 23, 0.74);
-  }
-
-  .heatmap-cell--today {
-    border-color: rgba(207, 125, 87, 0.46);
-    box-shadow: 0 0 0 1px rgba(207, 125, 87, 0.22);
-  }
-
   .history-table {
     display: flex;
     flex-direction: column;
@@ -584,6 +561,7 @@
     background: rgba(0, 0, 0, 0.4);
     backdrop-filter: blur(12px);
     cursor: pointer;
+    animation: backdropFadeIn 250ms var(--water-ease);
   }
 
   #session-review-modal.modal-backdrop {
@@ -1011,6 +989,11 @@
     to { opacity: 1; transform: scale(1); }
   }
 
+  @keyframes backdropFadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
   @keyframes borderShift {
     0% { background-position: 0% 50%; }
     100% { background-position: 200% 50%; }
@@ -1183,9 +1166,7 @@
     box-shadow: 0 20px 48px -12px var(--glass-shadow-strong), inset 0 1px 0 rgba(255, 255, 255, 0.06);
   }
 
-  [data-theme="light"] .datepicker-popover {
-    background: #f0e8e0;
-  }
+
 
   .datepicker-header {
     display: flex;

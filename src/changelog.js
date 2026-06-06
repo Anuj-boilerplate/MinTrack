@@ -1,5 +1,23 @@
 export const CHANGELOG = [
   {
+    version: '1.4.5',
+    date: '2026-06-06',
+    changes: [
+      {
+        title: "Stutter-Free Modal Transitions",
+        description: "Optimized modal and screen transitions to run with hardware acceleration. Removed heavy background CSS blur filters and added a smooth backdrop fade-in."
+      },
+      {
+        title: "Warm Paper Light Theme",
+        description: "Redesigned the light mode to use a warm ivory paper look, comfortable espresso text, and soft sepia pencil borders to reduce eye strain."
+      },
+      {
+        title: "Robust Sync Queue",
+        description: "Fixed sync loop failures on duplicate session uploads using server-side upserts, and debounced sync triggers to save battery and network bandwidth."
+      }
+    ]
+  },
+  {
     version: '1.4.4',
     date: '2026-06-03',
     changes: [

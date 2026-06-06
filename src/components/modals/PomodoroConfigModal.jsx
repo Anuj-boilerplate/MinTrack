@@ -96,8 +96,12 @@ export default function PomodoroConfigModal({ onClose, onStart }) {
   const customPaneRef  = useRef(null);
   const [viewportHeight, setViewportHeight] = useState(350);
 
-  // Sync inputs when selected preset changes
-  useEffect(() => {
+  const [prevSelectedPreset, setPrevSelectedPreset] = useState(selectedPreset);
+  const [prevCustomPreset, setPrevCustomPreset] = useState(customPreset);
+
+  if (selectedPreset !== prevSelectedPreset || customPreset !== prevCustomPreset) {
+    setPrevSelectedPreset(selectedPreset);
+    setPrevCustomPreset(customPreset);
     const preset = PRESETS[selectedPreset];
     if (preset) {
       setFocusInput(String(preset.focus));
@@ -109,7 +113,7 @@ export default function PomodoroConfigModal({ onClose, onStart }) {
       setBreakInput(String(src.breakTime));
       setCyclesInput(String(src.cycles));
     }
-  }, [selectedPreset, customPreset]);
+  }
 
   // ResizeObserver — only re-attaches when the visible pane changes
   useEffect(() => {

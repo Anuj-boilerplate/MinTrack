@@ -1,13 +1,15 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { getStartOfDay } from '../utils';
 
 const STATE_KEY = 'mintrack_state';
 
 const StateContext = createContext();
+const UserContext = createContext();
 
 export const useStateContext = () => useContext(StateContext);
+export const useUserContext = () => useContext(UserContext);
 
 function normalizeSubject(subject) {
   return {
@@ -53,13 +55,48 @@ export const StateProvider = ({ children, session }) => {
   
   const [loading, setLoading] = useState(true);
   const initializedUserRef = useRef(null);
+  const pendingSaveStateRef = useRef(null);
+  const saveTimeoutRef = useRef(null);
 
-  const saveState = (newState) => {
-    localStorage.setItem(STATE_KEY, JSON.stringify(newState));
-  };
+  // Debounced saveState helper
+  const saveStateDebounced = useCallback((newState) => {
+    pendingSaveStateRef.current = newState;
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      if (pendingSaveStateRef.current) {
+        localStorage.setItem(STATE_KEY, JSON.stringify(pendingSaveStateRef.current));
+        pendingSaveStateRef.current = null;
+      }
+      saveTimeoutRef.current = null;
+    }, 1000); // 1s debounce
+  }, []);
+
+  const flushSaveState = useCallback(() => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    if (pendingSaveStateRef.current) {
+      localStorage.setItem(STATE_KEY, JSON.stringify(pendingSaveStateRef.current));
+      pendingSaveStateRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      flushSaveState();
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      flushSaveState();
+    };
+  }, [flushSaveState]);
 
   // Load and patch state on mount
-  async function initState(userId) {
+  const initState = useCallback(async (userId) => {
     if (!userId || initializedUserRef.current === userId) return;
     initializedUserRef.current = userId;
 
@@ -109,12 +146,13 @@ export const StateProvider = ({ children, session }) => {
         await supabase.from('subjects').upsert(toInsert);
       }
 
-      updateState(patchedState);
+      setState(patchedState);
+      localStorage.setItem(STATE_KEY, JSON.stringify(patchedState));
       setLoading(false);
     } catch (err) {
       console.error("Initialization failed", err);
     }
-  }
+  }, []);
 
   /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
@@ -122,28 +160,52 @@ export const StateProvider = ({ children, session }) => {
     if (initializedUserRef.current !== session.user.id) {
       setLoading(true);
     }
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     initState(session.user.id);
-  }, [session]);
+  }, [session, initState]);
   /* eslint-enable react-hooks/exhaustive-deps */
 
   // Wrapper to update state and save automatically
-  function updateState(updater) {
+  const updateState = useCallback((updater) => {
     setState(prev => {
       const candidate = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
-      const next = normalizeState(candidate);
-      saveState(next);
+      const next = {
+        ...candidate,
+        last_updated_date: candidate.last_updated_date || new Date().toISOString()
+      };
+      saveStateDebounced(next);
       return next;
     });
-  }
+  }, [saveStateDebounced]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
+    pendingSaveStateRef.current = null;
     localStorage.removeItem(STATE_KEY);
     await supabase.auth.signOut();
-  };
+  }, []);
+
+  const userId = session?.user?.id;
+
+  const stateContextValue = useMemo(() => ({
+    state,
+    updateState,
+    loading
+  }), [state, updateState, loading]);
+
+  const userContextValue = useMemo(() => ({
+    userId,
+    logout
+  }), [userId, logout]);
 
   return (
-    <StateContext.Provider value={{ state, updateState, logout, loading, userId: session?.user?.id }}>
-      {children}
-    </StateContext.Provider>
+    <UserContext.Provider value={userContextValue}>
+      <StateContext.Provider value={stateContextValue}>
+        {children}
+      </StateContext.Provider>
+    </UserContext.Provider>
   );
 };

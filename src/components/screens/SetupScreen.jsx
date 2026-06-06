@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { useStateContext } from '../../contexts/StateContext';
+import { useStateContext, useUserContext } from '../../contexts/StateContext';
 import { addActionToQueue, processSyncQueue } from '../../lib/syncQueue';
 import DatePicker from '../DatePicker';
 
 export default function SetupScreen() {
-  const { updateState, userId } = useStateContext();
+  const { updateState } = useStateContext();
+  const { userId } = useUserContext();
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
 

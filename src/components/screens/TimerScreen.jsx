@@ -6,7 +6,7 @@ export default function TimerScreen({ timer, onStop }) {
   const [showResumeOverlay, setShowResumeOverlay] = useState(() => (
     Boolean(state.activeSession && Date.now() - new Date(state.activeSession.startTime).getTime() > 10)
   ));
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   const activeSubject = state.subjects.find((subject) => subject.id === state.activeSession?.subjectId);
 
