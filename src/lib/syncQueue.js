@@ -17,6 +17,11 @@ const actionQueue = localforage.createInstance({
  */
 export async function addActionToQueue(action) {
   const id = crypto.randomUUID();
+  console.log(`%c📦 [SyncQueue] Queuing action locally: ${action.type}`, 'color: #3b82f6; font-weight: bold;', {
+    id,
+    subjectId: action.subjectId,
+    payload: action.payload
+  });
   await actionQueue.setItem(id, { ...action, id, timestamp: Date.now() });
   return id;
 }
@@ -32,8 +37,11 @@ async function processActionQueue() {
   }
   actions.sort((a, b) => a.timestamp - b.timestamp);
 
+  console.log(`%c🔄 [SyncQueue] Processing ${actions.length} action(s)...`, 'color: #8b5cf6;');
+
   for (const action of actions) {
     let error = null;
+    console.log(`[SyncQueue] Syncing action ${action.type} (ID: ${action.id})...`);
     
     try {
       switch (action.type) {
@@ -58,12 +66,13 @@ async function processActionQueue() {
       }
 
       if (!error) {
+        console.log(`%c✅ [SyncQueue] Successfully synced action ${action.type} (ID: ${action.id})`, 'color: #10b981;');
         await actionQueue.removeItem(action.id);
       } else {
-        console.error(`Failed to sync action ${action.type}`, error);
+        console.error(`%c❌ [SyncQueue] Failed to sync action ${action.type} (ID: ${action.id}):`, 'color: #ef4444;', error);
       }
     } catch (err) {
-      console.error(`Critical error syncing action ${action.type}`, err);
+      console.error(`%c❌ [SyncQueue] Critical error syncing action ${action.type} (ID: ${action.id}):`, 'color: #ef4444;', err);
     }
   }
 }
@@ -75,6 +84,14 @@ export async function addSessionToQueue(sessionData) {
   const id = crypto.randomUUID();
   const rawDuration = Number(sessionData.duration_minutes);
   const duration = isNaN(rawDuration) ? 0 : Math.round(rawDuration);
+  
+  console.log('%c📦 [SyncQueue] Queuing session locally:', 'color: #3b82f6; font-weight: bold;', {
+    id,
+    subject_id: sessionData.subject_id,
+    duration_minutes: duration,
+    is_discarded: sessionData.is_discarded
+  });
+
   await sessionQueue.setItem(id, { 
     ...sessionData, 
     duration_minutes: duration,
@@ -87,12 +104,16 @@ async function processSessionSyncQueue() {
   const keys = await sessionQueue.keys();
   if (keys.length === 0) return;
 
+  console.log(`%c🔄 [SyncQueue] Processing ${keys.length} session(s)...`, 'color: #8b5cf6;');
+
   for (const key of keys) {
     const session = await sessionQueue.getItem(key);
     if (!session) continue;
     
     const rawDuration = Number(session.duration_minutes);
     const duration = isNaN(rawDuration) ? 0 : Math.round(rawDuration);
+
+    console.log(`[SyncQueue] Syncing session (ID: ${session.id}, duration: ${duration}m, subject_id: ${session.subject_id})...`);
 
     const { error } = await supabase.from('sessions').upsert({
       id: session.id,
@@ -105,13 +126,20 @@ async function processSessionSyncQueue() {
 
     if (!error) {
       if (!session.is_discarded && session.new_valid_hours !== undefined) {
-        await supabase.from('subjects')
+        const { error: subjectUpdateError } = await supabase.from('subjects')
           .update({ valid_hours: session.new_valid_hours })
           .eq('id', session.subject_id);
+
+        if (subjectUpdateError) {
+          console.error(`%c❌ [SyncQueue] Failed to update subject valid_hours for session ${session.id}:`, 'color: #ef4444;', subjectUpdateError);
+        } else {
+          console.log(`[SyncQueue] Updated subject ${session.subject_id} valid_hours to ${session.new_valid_hours}`);
+        }
       }
+      console.log(`%c✅ [SyncQueue] Successfully synced session (ID: ${session.id})`, 'color: #10b981;');
       await sessionQueue.removeItem(key);
     } else {
-      console.error('Failed to sync session', error);
+      console.error(`%c❌ [SyncQueue] Failed to sync session (ID: ${session.id}):`, 'color: #ef4444;', error);
 
       // Handle foreign key constraint violation (subject doesn't exist)
       if (error.code === '23503') {
@@ -126,8 +154,10 @@ async function processSessionSyncQueue() {
         }
 
         if (!hasPendingInsert) {
-          console.warn(`Subject ${session.subject_id} does not exist and has no pending insert. Discarding session ${session.id} from queue.`);
+          console.warn(`%c⚠️ [SyncQueue] Subject ${session.subject_id} does not exist and has no pending insert. Discarding session ${session.id} from queue.`, 'color: #f59e0b;');
           await sessionQueue.removeItem(key);
+        } else {
+          console.log(`[SyncQueue] Session ${session.id} will retry after its parent subject is inserted.`);
         }
       }
     }
@@ -138,19 +168,38 @@ async function processSessionSyncQueue() {
  * MAIN SYNC ENGINE
  */
 export async function processSyncQueue() {
-  if (!navigator.onLine) return;
+  if (!navigator.onLine) {
+    console.warn('%c⚠️ [SyncQueue] Device is offline. Skipping sync sweep.', 'color: #f59e0b;');
+    return;
+  }
+  
+  const actionKeys = await actionQueue.keys();
+  const sessionKeys = await sessionQueue.keys();
+  
+  if (actionKeys.length === 0 && sessionKeys.length === 0) {
+    return;
+  }
+
+  console.log(`%c🔄 [SyncQueue] Starting sync sweep. Pending actions: ${actionKeys.length}, Pending sessions: ${sessionKeys.length}`, 'color: #8b5cf6; font-weight: bold;');
   
   // Always process structural actions (deletes/edits) before logs
   await processActionQueue();
   await processSessionSyncQueue();
+  
+  console.log('%c✨ [SyncQueue] Sync sweep completed.', 'color: #10b981; font-weight: bold;');
 }
 
 export async function removeSessionsForSubject(subjectId) {
   const keys = await sessionQueue.keys();
+  let count = 0;
   for (const key of keys) {
     const session = await sessionQueue.getItem(key);
     if (session && session.subject_id === subjectId) {
       await sessionQueue.removeItem(key);
+      count++;
     }
+  }
+  if (count > 0) {
+    console.log(`%c🧹 [SyncQueue] Removed ${count} local queued session(s) for deleted subject ${subjectId}`, 'color: #6b7280;');
   }
 }
