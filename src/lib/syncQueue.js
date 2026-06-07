@@ -73,7 +73,13 @@ async function processActionQueue() {
  */
 export async function addSessionToQueue(sessionData) {
   const id = crypto.randomUUID();
-  await sessionQueue.setItem(id, { ...sessionData, id });
+  const rawDuration = Number(sessionData.duration_minutes);
+  const duration = isNaN(rawDuration) ? 0 : Math.round(rawDuration);
+  await sessionQueue.setItem(id, { 
+    ...sessionData, 
+    duration_minutes: duration,
+    id 
+  });
   return id;
 }
 
@@ -83,13 +89,17 @@ async function processSessionSyncQueue() {
 
   for (const key of keys) {
     const session = await sessionQueue.getItem(key);
+    if (!session) continue;
     
+    const rawDuration = Number(session.duration_minutes);
+    const duration = isNaN(rawDuration) ? 0 : Math.round(rawDuration);
+
     const { error } = await supabase.from('sessions').upsert({
       id: session.id,
       subject_id: session.subject_id,
       start_time: session.start_time,
       end_time: session.end_time,
-      duration_minutes: session.duration_minutes,
+      duration_minutes: duration,
       is_discarded: session.is_discarded
     }, { onConflict: 'id' });
 
@@ -102,6 +112,24 @@ async function processSessionSyncQueue() {
       await sessionQueue.removeItem(key);
     } else {
       console.error('Failed to sync session', error);
+
+      // Handle foreign key constraint violation (subject doesn't exist)
+      if (error.code === '23503') {
+        const actionKeys = await actionQueue.keys();
+        let hasPendingInsert = false;
+        for (const actionKey of actionKeys) {
+          const action = await actionQueue.getItem(actionKey);
+          if (action && action.type === 'INSERT_SUBJECT' && action.payload && action.payload.id === session.subject_id) {
+            hasPendingInsert = true;
+            break;
+          }
+        }
+
+        if (!hasPendingInsert) {
+          console.warn(`Subject ${session.subject_id} does not exist and has no pending insert. Discarding session ${session.id} from queue.`);
+          await sessionQueue.removeItem(key);
+        }
+      }
     }
   }
 }

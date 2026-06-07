@@ -71,15 +71,13 @@ export default function DatePicker({ id, value, onChange, placeholder, required 
   // function reference across renders and React can skip re-rendering them.
   // ---------------------------------------------------------------------------
   const toggleCalendar = useCallback(() => {
-    setIsOpen((prev) => {
-      // Sync view to the selected date when opening
-      if (!prev && value) {
-        const parsed = parseYearMonth(value);
-        if (parsed) setCurrentView(parsed);
-      }
-      return !prev;
-    });
-  }, [value]);
+    const nextOpen = !isOpen;
+    if (nextOpen && value) {
+      const parsed = parseYearMonth(value);
+      if (parsed) setCurrentView(parsed);
+    }
+    setIsOpen(nextOpen);
+  }, [isOpen, value]);
 
   const handlePrevMonth = useCallback((e) => {
     e.stopPropagation();
@@ -101,13 +99,11 @@ export default function DatePicker({ id, value, onChange, placeholder, required 
 
   const handleSelectDay = useCallback((dayNum, e) => {
     e.stopPropagation();
-    setCurrentView((prev) => {
-      const dateStr = `${prev.year}-${pad(prev.month + 1)}-${pad(dayNum)}`;
-      onChange({ target: { value: dateStr } });
-      return prev; // view doesn't change
-    });
+    const { year, month } = currentView;
+    const dateStr = `${year}-${pad(month + 1)}-${pad(dayNum)}`;
+    onChange({ target: { value: dateStr } });
     setIsOpen(false);
-  }, [onChange]);
+  }, [onChange, currentView]);
 
   const handleClear = useCallback((e) => {
     e.stopPropagation();

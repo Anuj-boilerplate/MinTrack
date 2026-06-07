@@ -19,6 +19,7 @@ const SubjectCard = memo(function SubjectCard({ sub, isSelected, onSelect, onOpe
   const handleCardClick = useCallback((e) => {
     e.stopPropagation();
     onSelect(sub.id);
+
   }, [sub.id, onSelect]);
 
   const handleEditClick = useCallback((e) => {
@@ -91,8 +92,8 @@ const SubjectCard = memo(function SubjectCard({ sub, isSelected, onSelect, onOpe
   );
 }, (prevProps, nextProps) => {
   return prevProps.sub === nextProps.sub &&
-         prevProps.isSelected === nextProps.isSelected &&
-         prevProps.termEndDate === nextProps.termEndDate;
+    prevProps.isSelected === nextProps.isSelected &&
+    prevProps.termEndDate === nextProps.termEndDate;
 });
 
 export default function HomeScreen({ onOpenModal, toggleTheme }) {
@@ -136,7 +137,7 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
     let validAccumulator = 0;
     let dailyTargetReqAccumulator = 0;
     let dailyTargetCompAccumulator = 0;
-    
+
     const todayVal = new Date();
 
     state.subjects.forEach((sub) => {
@@ -182,7 +183,7 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
     const targetHours = parseFloat(selectedSubject.target_hours) || 0;
     const validHours = parseFloat(selectedSubject.valid_hours) || 0;
     const todayFocus = selectedSubject.completed_today || 0;
-    
+
     const subjectDeadline = selectedSubject.deadline || (state.term ? state.term.endDate : null);
     let todayGoal = 0;
     let isCompleted = validHours >= targetHours;
