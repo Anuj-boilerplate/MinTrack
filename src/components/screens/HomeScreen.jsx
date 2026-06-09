@@ -1,26 +1,19 @@
-import { useEffect, useState, useCallback, useMemo, memo } from 'react';
+import { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { useStateContext } from '../../contexts/StateContext';
-import { getDaysLeft, formatHoursToMins, formatISODateForDisplay } from '../../utils';
+import { getDaysLeft, formatISODateForDisplay } from '../../utils';
+
+// Card gap (px) between card centers — drives both DOM transforms and drag threshold
+const CARD_STRIDE = 400;
 
 // ---------------------------------------------------------------------------
-// SubjectCard — memo'd child component to prevent redundant card re-renders
+// SubjectCard — receives a stable data-index; transforms applied imperatively
+// by the carousel so this component NEVER re-renders during drag.
 // ---------------------------------------------------------------------------
-const SubjectCard = memo(function SubjectCard({ sub, isSelected, onSelect, onOpenModal, termEndDate }) {
-  const today = new Date();
-  const targetHours = parseFloat(sub.target_hours) || 0;
-  const validHours = parseFloat(sub.valid_hours) || 0;
-  const pct = targetHours > 0 ? Math.min((validHours / targetHours) * 100, 100) : 0;
-
-  const subDeadline = sub.deadline || termEndDate;
-  const subDaysLeft = subDeadline ? getDaysLeft(today, subDeadline) : 0;
-  const isSubCompleted = validHours >= targetHours;
-  const isSubOverdue = subDaysLeft < 0 && !isSubCompleted;
-
+const SubjectCard = memo(function SubjectCard({ sub, index, isActive, onSelect, onOpenModal, style }) {
   const handleCardClick = useCallback((e) => {
     e.stopPropagation();
-    onSelect(sub.id);
-
-  }, [sub.id, onSelect]);
+    onSelect(index);
+  }, [index, onSelect]);
 
   const handleEditClick = useCallback((e) => {
     e.stopPropagation();
@@ -32,191 +25,186 @@ const SubjectCard = memo(function SubjectCard({ sub, isSelected, onSelect, onOpe
     onOpenModal('pomodoro', sub.id);
   }, [sub.id, onOpenModal]);
 
+  const colorIndex = index % 8;
+
   return (
     <article
-      className={`subject-card glass-surface ${isSelected ? 'selected' : ''}`}
-      onClick={handleCardClick}
+      data-card-index={index}
+      className={`coverflow-card glass-surface card-theme-${colorIndex}${isActive ? ' active' : ''}`}
+      style={style}
     >
-      <div className="flex justify-between items-start gap-4 mb-12">
-        <div className="min-w-0">
+      <div className="coverflow-card-header">
+        <div className="min-w-0 flex-1">
           <button type="button" className="subject-select" onClick={handleCardClick}>
-            <span className="text-medium text-text-primary block truncate">{sub.name}</span>
+            <span className="text-medium text-text-primary block font-medium truncate tracking-tight">
+              {sub.name}
+            </span>
           </button>
-          <p className="text-tiny text-text-muted mt-3">{formatHoursToMins(validHours)} of {targetHours}h complete</p>
-          {sub.deadline && (
-            <p className={`text-tiny mt-2 ${subDaysLeft < 0 && !isSubCompleted ? 'text-[#b86d60]' : 'text-text-muted opacity-80'}`}>
-              Deadline: {formatISODateForDisplay(sub.deadline)}
-            </p>
-          )}
         </div>
 
         <button
-          className="subject-edit-button"
+          className="subject-edit-button flex-shrink-0"
           title="Edit Subject"
           onClick={handleEditClick}
           type="button"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M12 20h9"></path>
             <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
           </svg>
         </button>
       </div>
 
-      <div className="subject-progress-block">
-        <div className="progress-track">
-          <div className="progress-fill" style={{ width: `${pct}%` }}></div>
-        </div>
-      </div>
-
-      <div className="mt-auto pt-12">
-        {isSubCompleted ? (
-          <button className="session-launch-btn w-full opacity-70 cursor-not-allowed text-[#d3a36c] border-[rgba(211,163,108,0.3)]" disabled type="button">
-            Completed
-          </button>
-        ) : isSubOverdue ? (
-          <button className="session-launch-btn w-full opacity-80 cursor-not-allowed bg-[rgba(184,109,96,0.15)] text-[#b86d60] border-[rgba(184,109,96,0.3)]" disabled type="button">
-            Overdue
-          </button>
-        ) : subDaysLeft >= 0 ? (
-          <button className="session-launch-btn w-full" onClick={handleStartSessionClick} type="button">
+      {isActive && (
+        <div className="w-full mt-auto pt-8 animate-[fadeIn_0.25s_ease]">
+          <button
+            className="session-launch-btn w-full font-medium"
+            onClick={handleStartSessionClick}
+            type="button"
+          >
             Start Session
           </button>
-        ) : (
-          <button className="session-launch-btn w-full opacity-60 cursor-not-allowed" disabled type="button">
-            Finished
-          </button>
-        )}
-      </div>
+        </div>
+      )}
     </article>
   );
-}, (prevProps, nextProps) => {
-  return prevProps.sub === nextProps.sub &&
-    prevProps.isSelected === nextProps.isSelected &&
-    prevProps.termEndDate === nextProps.termEndDate;
-});
+}, (prev, next) =>
+  prev.sub === next.sub &&
+  prev.isActive === next.isActive &&
+  prev.index === next.index
+);
 
+// ---------------------------------------------------------------------------
+// computeCardStyle — pure function, called both during drag (DOM mutation) and
+// during React render (initial + snap). Returns a CSS transform string +
+// supplemental style props.
+// ---------------------------------------------------------------------------
+function computeCardStyle(cardIndex, fractionalActiveIndex) {
+  const offset = cardIndex - fractionalActiveIndex;
+  const absOffset = Math.abs(offset);
+  const direction = offset >= 0 ? 1 : -1;
+
+  const tx = offset * CARD_STRIDE * 0.75;
+  const tz = -absOffset * 25;
+  const rotateY = direction * -8 * Math.min(1, absOffset);
+  const scale = Math.max(0.7, 1 - absOffset * 0.1);
+  const opacity = Math.max(0.5, 1 - absOffset * 0.25);
+  const zIndex = Math.round(100 - absOffset * 10);
+
+  return {
+    transform: `translate3d(${tx}px, 0, ${tz}px) rotateY(${rotateY}deg) scale(${scale})`,
+    opacity,
+    zIndex,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// HomeScreen
+// ---------------------------------------------------------------------------
 export default function HomeScreen({ onOpenModal, toggleTheme }) {
   const { state } = useStateContext();
-  const [selectedSubjectId, setSelectedSubjectId] = useState(null);
+  const [activeIndex, setActiveIndex] = useState(0);
   const [prevSubjects, setPrevSubjects] = useState(state.subjects);
 
-  // Derived-state pattern (React docs recommended): synchronize selectedSubjectId
-  // with the subjects list during render rather than in a useEffect, which would
-  // add a wasted extra render cycle after every subjects change.
+  // Refs for zero-re-render drag tracking
+  const trackRef = useRef(null);
+  const isDraggingRef = useRef(false);
+  const startXRef = useRef(0);
+  const liveOffsetRef = useRef(0); // fractional index offset during drag
+
+  // ── Derived-state sync ────────────────────────────────────────────────────
   if (state.subjects !== prevSubjects) {
     setPrevSubjects(state.subjects);
     if (!state.subjects.length) {
-      setSelectedSubjectId(null);
-    } else if (selectedSubjectId !== null && !state.subjects.some((subject) => subject.id === selectedSubjectId)) {
-      setSelectedSubjectId(null);
+      setActiveIndex(0);
+    } else {
+      setActiveIndex((prev) => Math.min(prev, state.subjects.length - 1));
     }
   }
 
-  useEffect(() => {
-    const handleGlobalClick = (e) => {
-      // If the click is inside a subject card or a modal, don't deselect
-      if (e.target.closest('.subject-card') || e.target.closest('.modal-backdrop')) {
-        return;
-      }
-      setSelectedSubjectId(null);
-    };
-
-    window.addEventListener('click', handleGlobalClick);
-    return () => window.removeEventListener('click', handleGlobalClick);
+  // ── Apply transforms imperatively to all card DOM nodes ──────────────────
+  const applyTransforms = useCallback((fractionalActive, animated) => {
+    const track = trackRef.current;
+    if (!track) return;
+    const cards = track.querySelectorAll('[data-card-index]');
+    cards.forEach((card) => {
+      const i = parseInt(card.getAttribute('data-card-index'), 10);
+      const { transform, opacity, zIndex } = computeCardStyle(i, fractionalActive);
+      card.style.transform = transform;
+      card.style.opacity = opacity;
+      card.style.zIndex = zIndex;
+      card.style.transition = animated
+        ? 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1)'
+        : 'none';
+    });
   }, []);
 
-  // daysLeft is intentionally not memoized — it's a single cheap date call and
-  // must read a fresh Date() on every render to stay accurate across midnight.
+  // Apply transforms whenever activeIndex settles (React render → DOM sync)
+  useEffect(() => {
+    applyTransforms(activeIndex, true);
+  }, [activeIndex, state.subjects.length, applyTransforms]);
+
+  // ── Keyboard navigation ───────────────────────────────────────────────────
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+      if (e.key === 'ArrowLeft') {
+        setActiveIndex((i) => Math.max(0, i - 1));
+      } else if (e.key === 'ArrowRight') {
+        setActiveIndex((i) => Math.min(state.subjects.length - 1, i + 1));
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [state.subjects.length]);
+
+  // ── Drag handlers — NO setState during move ───────────────────────────────
+  const onPointerDown = useCallback((e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest('button') || e.target.closest('input')) return;
+    isDraggingRef.current = true;
+    startXRef.current = e.clientX;
+    liveOffsetRef.current = 0;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, []);
+
+  const onPointerMove = useCallback((e) => {
+    if (!isDraggingRef.current) return;
+    const dx = e.clientX - startXRef.current;
+    // Convert pixel delta to fractional index offset
+    liveOffsetRef.current = -dx / CARD_STRIDE;
+    const fractional = activeIndex + liveOffsetRef.current;
+    applyTransforms(fractional, false); // direct DOM — zero React re-renders
+  }, [activeIndex, applyTransforms]);
+
+  const onPointerUp = useCallback((e) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    const dx = e.clientX - startXRef.current;
+    const threshold = CARD_STRIDE * 0.22; // ~22% of stride
+    let next = activeIndex;
+    if (dx < -threshold) next = Math.min(state.subjects.length - 1, activeIndex + 1);
+    else if (dx > threshold) next = Math.max(0, activeIndex - 1);
+    // Snap: apply animated transforms immediately then commit to React state
+    applyTransforms(next, true);
+    setActiveIndex(next);
+    liveOffsetRef.current = 0;
+  }, [activeIndex, state.subjects.length, applyTransforms]);
+
+  // Click on a flanking card to centre it
+  const onCardSelect = useCallback((idx) => {
+    setActiveIndex(idx);
+  }, []);
+
+  // ── Derived ───────────────────────────────────────────────────────────────
   const daysLeft = state.term ? getDaysLeft(new Date(), state.term.endDate) : 0;
   const isTermEnded = daysLeft < 0;
 
-  // Memoized aggregate calculations
-  const { totalTarget, totalValid, dailyTargetRequired, dailyTargetCompleted, termPct, dailyPct } = useMemo(() => {
-    let targetAccumulator = 0;
-    let validAccumulator = 0;
-    let dailyTargetReqAccumulator = 0;
-    let dailyTargetCompAccumulator = 0;
-
-    const todayVal = new Date();
-
-    state.subjects.forEach((sub) => {
-      const targetHours = parseFloat(sub.target_hours) || 0;
-      const validHours = parseFloat(sub.valid_hours) || 0;
-      const completedToday = sub.completed_today || 0;
-      targetAccumulator += targetHours;
-      validAccumulator += validHours;
-
-      const subjectDeadline = sub.deadline || (state.term ? state.term.endDate : null);
-      if (subjectDeadline) {
-        const subjectDaysLeft = getDaysLeft(todayVal, subjectDeadline);
-        if (subjectDaysLeft >= 0) {
-          const todayGoal = Math.max(0, (targetHours - validHours + completedToday) / Math.max(1, subjectDaysLeft) + (sub.carryover || 0));
-          dailyTargetReqAccumulator += todayGoal;
-        }
-        dailyTargetCompAccumulator += completedToday;
-      }
-    });
-
-    const calculatedTermPct = targetAccumulator > 0 ? Math.min((validAccumulator / targetAccumulator) * 100, 100) : 0;
-    const calculatedDailyPct = dailyTargetReqAccumulator > 0 ? Math.min((dailyTargetCompAccumulator / dailyTargetReqAccumulator) * 100, 100) : 0;
-
-    return {
-      totalTarget: targetAccumulator,
-      totalValid: validAccumulator,
-      dailyTargetRequired: dailyTargetReqAccumulator,
-      dailyTargetCompleted: dailyTargetCompAccumulator,
-      termPct: calculatedTermPct,
-      dailyPct: calculatedDailyPct
-    };
-  }, [state.subjects, state.term]);
-
-  const selectedSubject = useMemo(() => {
-    return state.subjects.find((subject) => subject.id === selectedSubjectId) ?? null;
-  }, [state.subjects, selectedSubjectId]);
-
-  // Memoized metrics for the selected subject detail sidebar panel
-  const selectedMetrics = useMemo(() => {
-    if (!selectedSubject) return null;
-
-    const todayVal = new Date();
-    const targetHours = parseFloat(selectedSubject.target_hours) || 0;
-    const validHours = parseFloat(selectedSubject.valid_hours) || 0;
-    const todayFocus = selectedSubject.completed_today || 0;
-
-    const subjectDeadline = selectedSubject.deadline || (state.term ? state.term.endDate : null);
-    let todayGoal = 0;
-    let isCompleted = validHours >= targetHours;
-    let isOverdue = false;
-
-    if (subjectDeadline) {
-      const subjectDaysLeft = getDaysLeft(todayVal, subjectDeadline);
-      if (subjectDaysLeft >= 0) {
-        todayGoal = Math.max(0, (targetHours - validHours + todayFocus) / Math.max(1, subjectDaysLeft) + (selectedSubject.carryover || 0));
-      } else {
-        isOverdue = !isCompleted;
-      }
-    }
-
-    return {
-      progressPct: targetHours > 0 ? Math.min((validHours / targetHours) * 100, 100) : 0,
-      todayFocus: formatHoursToMins(todayFocus),
-      todayGoal: formatHoursToMins(todayGoal),
-      totalTime: formatHoursToMins(validHours),
-      pausedToday: formatHoursToMins(selectedSubject.paused_time_today || 0),
-      isCompleted,
-      isOverdue
-    };
-  }, [selectedSubject, state.term]);
-
-  const overviewCopy = isTermEnded
-    ? 'The term has settled. What remains here is what was sustained.'
-    : dailyTargetCompleted > 0
-      ? 'Momentum is already in motion today. Keep it steady with one clean session at a time.'
-      : 'Start your first session to see more insights';
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div id="home-screen" className="dashboard-shell animate-[screenFade_0.6s_cubic-bezier(0.25,0.46,0.45,0.94)]">
+
+      {/* ── Header ── */}
       <header className="dashboard-header">
         <div>
           <p className="text-tiny text-text-muted uppercase tracking-[0.28em] mb-5">Make every minute count.</p>
@@ -224,22 +212,19 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
         </div>
 
         <div className="header-pill" role="group" aria-label="Dashboard actions">
-          <button id="theme-toggle-btn" className="header-icon-button theme-toggle-svg-btn" title="Toggle Light/Dark Mode" onClick={toggleTheme} type="button">
+          <button id="theme-toggle-btn" className="header-icon-button theme-toggle-svg-btn" title="Toggle theme" onClick={toggleTheme} type="button">
             <svg className="sun-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="5"></circle>
-              <line x1="12" y1="1" x2="12" y2="3"></line>
-              <line x1="12" y1="21" x2="12" y2="23"></line>
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-              <line x1="1" y1="12" x2="3" y2="12"></line>
-              <line x1="21" y1="12" x2="23" y2="12"></line>
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              <line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line>
+              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+              <line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line>
+              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
             </svg>
             <svg className="moon-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
             </svg>
           </button>
+
           <button id="settings-btn" className="header-icon-button" title="Settings" onClick={() => onOpenModal('settings')} type="button">
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <circle cx="12" cy="12" r="3"></circle>
@@ -249,116 +234,73 @@ export default function HomeScreen({ onOpenModal, toggleTheme }) {
         </div>
       </header>
 
-      <section className="progress-rail glass-surface">
-        <div className="progress-block">
-          <div className="flex items-end justify-between gap-4 mb-6">
-            <div>
-              <p className="text-small text-text-secondary mb-2">Today&apos;s Target</p>
-              <p className="text-medium text-text-primary">{isTermEnded ? 'Closed' : formatHoursToMins(dailyTargetRequired)}</p>
-            </div>
-            <p className="text-small text-accent">{formatHoursToMins(dailyTargetCompleted)} complete</p>
-          </div>
-          <div className="progress-track">
-            <div className="progress-fill" id="daily-progress-fill" style={{ width: `${dailyPct}%` }}></div>
-          </div>
+      {/* ── Term status row ── */}
+      <div className="home-meta-row">
+        <div>
+          <p id="term-status" className="text-display">
+            {isTermEnded ? 'Term ended' : `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} remaining`}
+          </p>
+          <p id="term-dates" className="text-small text-text-secondary term-dates">
+            {state.term && `${formatISODateForDisplay(state.term.startDate)} to ${formatISODateForDisplay(state.term.endDate)}`}
+          </p>
         </div>
-
-        <div className="progress-divider"></div>
-
-        <div className="progress-block">
-          <div className="flex items-end justify-between gap-4 mb-6">
-            <div>
-              <p className="text-small text-text-secondary mb-2">Term Progress</p>
-              <p className="text-medium text-text-primary">{formatHoursToMins(totalValid)} of {totalTarget}h</p>
-            </div>
-            <p className="text-small text-accent">{termPct.toFixed(0)}%</p>
-          </div>
-          <div className="progress-track">
-            <div className="progress-fill" id="term-progress-fill" style={{ width: `${termPct}%` }}></div>
-          </div>
+        <div className="mobile-actions-wrapper">
+          <button id="manual-log-btn" className="secondary-glass-btn" type="button" onClick={() => onOpenModal('manualLog')}>Log Session</button>
+          <button id="add-subject-btn" className="secondary-glass-btn" type="button" onClick={() => onOpenModal('addSubject')}>Add Subject</button>
         </div>
-      </section>
+      </div>
 
-      <main className="dashboard-grid">
-        <section className="dashboard-left">
-          <div className="panel-heading">
-            <div>
-              <p id="term-status" className="text-display">{isTermEnded ? 'Term ended' : `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} remaining`}</p>
-              <p id="term-dates" className="text-small text-text-secondary term-dates">
-                {state.term && `${formatISODateForDisplay(state.term.startDate)} to ${formatISODateForDisplay(state.term.endDate)}`}
-              </p>
-            </div>
-            <div className="mobile-actions-wrapper">
-              <button id="manual-log-btn" className="secondary-glass-btn" type="button" onClick={() => onOpenModal('manualLog')}>Log Session</button>
-              <button id="add-subject-btn" className="secondary-glass-btn" type="button" onClick={() => onOpenModal('addSubject')}>Add Subject</button>
-            </div>
+      {/* ── Coverflow ── */}
+      {state.subjects.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <p className="text-medium text-text-secondary mb-8">No subjects yet.</p>
+          <button className="primary-btn" onClick={() => onOpenModal('addSubject')}>Add Subject</button>
+        </div>
+      ) : (
+        <div
+          className="coverflow-container"
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        >
+          <div className="coverflow-track" ref={trackRef}>
+            {state.subjects.map((sub, idx) => {
+              // Initial style computed synchronously so first paint is correct.
+              // After mount, applyTransforms() takes over via useEffect.
+              const { transform, opacity, zIndex } = computeCardStyle(idx, activeIndex);
+              return (
+                <SubjectCard
+                  key={sub.id}
+                  sub={sub}
+                  index={idx}
+                  isActive={idx === activeIndex}
+                  onSelect={onCardSelect}
+                  onOpenModal={onOpenModal}
+                  style={{ transform, opacity, zIndex }}
+                />
+              );
+            })}
           </div>
 
-          <div className="subject-grid">
-            {state.subjects.map((sub) => (
-              <SubjectCard
-                key={sub.id}
-                sub={sub}
-                isSelected={selectedSubjectId === sub.id}
-                onSelect={setSelectedSubjectId}
-                onOpenModal={onOpenModal}
-                termEndDate={state.term?.endDate}
-              />
-            ))}
-          </div>
-        </section>
-
-        <aside className="dashboard-right glass-surface">
-          {selectedSubject && selectedMetrics ? (
-            <>
-              <section className="detail-section">
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-tiny text-text-muted uppercase tracking-[0.22em] mb-5">Selected subject</p>
-                    <h2 className="text-display">{selectedSubject.name}</h2>
-                    {selectedSubject.deadline && (
-                      <p className="text-tiny text-text-muted mt-3 flex items-center gap-3">
-                        Deadline: {formatISODateForDisplay(selectedSubject.deadline)}
-                        {selectedMetrics.isOverdue && <span className="px-3 py-1 text-tiny rounded-full bg-[rgba(184,109,96,0.18)] text-[#b86d60] border border-[rgba(184,109,96,0.3)]">Overdue</span>}
-                        {selectedMetrics.isCompleted && <span className="px-3 py-1 text-tiny rounded-full bg-[rgba(211,163,108,0.18)] text-[#d3a36c] border border-[rgba(211,163,108,0.3)]">Completed</span>}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </section>
-
-              <div className="section-divider h-px my-8"></div>
-
-              <section className="detail-section stats-grid">
-                <div className="stat-tile">
-                  <span className="stat-label">Today&apos;s Focus</span>
-                  <strong className="stat-value">{selectedMetrics.todayFocus}</strong>
-                </div>
-                <div className="stat-tile">
-                  <span className="stat-label">Today&apos;s Goal</span>
-                  <strong className="stat-value">{selectedMetrics.todayGoal}</strong>
-                </div>
-                <div className="stat-tile">
-                  <span className="stat-label">Total Time Completed</span>
-                  <strong className="stat-value">{selectedMetrics.totalTime}</strong>
-                </div>
-                <div className="stat-tile">
-                  <span className="stat-label">Paused Today</span>
-                  <strong className="stat-value">{selectedMetrics.pausedToday}</strong>
-                </div>
-              </section>
-
-            </>
-          ) : (
-            <section className="detail-empty">
-              <p className="text-tiny text-text-muted uppercase tracking-[0.22em] mb-6">Today&apos;s overview</p>
-              <h2 className="text-display">{formatHoursToMins(dailyTargetCompleted)}</h2>
-              <p className="text-small text-text-secondary mt-3">Focused across the subjects currently in view.</p>
-              <p className="text-small text-text-secondary mt-12 max-w-[34ch]">{overviewCopy}</p>
-            </section>
+          {/* Dot indicators */}
+          {state.subjects.length > 1 && (
+            <div className="coverflow-dots" role="tablist" aria-label="Subject navigation">
+              {state.subjects.map((sub, idx) => (
+                <button
+                  key={sub.id}
+                  role="tab"
+                  aria-selected={idx === activeIndex}
+                  className={`coverflow-dot${idx === activeIndex ? ' active' : ''}`}
+                  onClick={() => setActiveIndex(idx)}
+                  type="button"
+                  aria-label={sub.name}
+                />
+              ))}
+            </div>
           )}
-        </aside>
-      </main>
+        </div>
+      )}
 
       {isTermEnded && (
         <div id="term-ended-banner" className="term-ended-note">
