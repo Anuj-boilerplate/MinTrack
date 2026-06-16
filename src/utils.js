@@ -52,3 +52,13 @@ export function getSessionRangeFromTimes(startTime, endTime, referenceDate = new
         durationMinutes: (end - start) / 60000
     };
 }
+
+export function hexToRgba(hex, opacity) {
+    if (!hex) return `rgba(255, 255, 255, ${opacity})`;
+    const num = parseInt(hex.replace('#', ''), 16);
+    const r = (num >> 16) & 255;
+    const g = (num >> 8) & 255;
+    const b = num & 255;
+    return `rgba(${r}, ${g}, ${b}, ${opacity})`;
+}
+

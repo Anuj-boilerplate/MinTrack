@@ -8,6 +8,9 @@ import { addSessionToQueue, processSyncQueue, removeSessionsForSubject, addActio
 import SetupScreen from './components/screens/SetupScreen';
 import HomeScreen from './components/screens/HomeScreen';
 import TimerScreen from './components/screens/TimerScreen';
+import Navbar from './components/Navbar';
+import TodoScreen from './components/screens/TodoScreen';
+import AnalyticsScreen from './components/screens/AnalyticsScreen';
 
 import AddSubjectModal from './components/modals/AddSubjectModal';
 import EditSubjectModal from './components/modals/EditSubjectModal';
@@ -43,6 +46,7 @@ function AppContent() {
     !localStorage.getItem(`seen_update_${APP_VERSION}`) ? { type: 'update' } : null
   )); // { type, subjectId }
   const [sessionReviewData, setSessionReviewData] = useState(null);
+  const [activeTab, setActiveTab] = useState('goals');
 
   const handleStopSession = useCallback(() => {
     const activeSession = state.activeSession;
@@ -91,13 +95,6 @@ function AppContent() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     handleStopSession();
   }, [handleStopSession, timer.isDone, state.activeSession]);
-
-  const toggleTheme = useCallback(() => {
-    const current = document.documentElement.getAttribute('data-theme') || 'dark';
-    const next = current === 'dark' ? 'light' : 'dark';
-    document.documentElement.setAttribute('data-theme', next);
-    localStorage.setItem('theme', next);
-  }, []);
 
   const handleOpenModal = useCallback((type, subjectId = null) => {
     setActiveModal({ type, subjectId });
@@ -149,7 +146,7 @@ function AppContent() {
   };
 
   const handleDeleteSubject = async (id) => {
-    if (confirm("Are you sure you want to delete this subject?")) {
+    if (confirm("Are you sure you want to delete this goal?")) {
       updateState(prev => ({ ...prev, subjects: prev.subjects.filter(s => s.id !== id) }));
       setActiveModal(null);
 
@@ -235,10 +232,16 @@ function AppContent() {
       ) : state.activeSession ? (
         <TimerScreen timer={timer} onStop={handleStopSession} />
       ) : (
-        <HomeScreen
-          onOpenModal={handleOpenModal}
-          toggleTheme={toggleTheme}
-        />
+        <>
+          {activeTab === 'goals' && (
+            <HomeScreen
+              onOpenModal={handleOpenModal}
+            />
+          )}
+          {activeTab === 'todo' && <TodoScreen />}
+          {activeTab === 'analytics' && <AnalyticsScreen />}
+          <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
+        </>
       )}
 
       {/* Modals */}
@@ -258,10 +261,10 @@ function AppContent() {
       )}
 
       {currentModal === 'sessionReview' && (
-        <SessionReviewModal 
-          reviewData={sessionReviewData} 
-          onSave={handleSaveSession} 
-          onDiscard={handleDiscardSession} 
+        <SessionReviewModal
+          reviewData={sessionReviewData}
+          onSave={handleSaveSession}
+          onDiscard={handleDiscardSession}
         />
       )}
 

@@ -85,10 +85,10 @@ export default function AddSubjectModal({ onClose, onAdd }) {
   return (
     <div id="add-subject-modal" className="modal-backdrop" onClick={onClose}>
       <div className="modal-pane iridescent-border" onClick={e => e.stopPropagation()}>
-        <h2 className="text-medium mb-6 text-text-primary">Add Subject</h2>
+        <h2 className="text-medium mb-6 text-text-primary">Add Goal</h2>
         <form id="subject-form" onSubmit={handleSubmit}>
           <div className="mb-9">
-            <label htmlFor="subject-name" className="block text-sm text-text-secondary mb-3">Subject Name</label>
+            <label htmlFor="subject-name" className="block text-sm text-text-secondary mb-3">Goal Name</label>
             <input type="text" id="subject-name" className="input-field" required placeholder="e.g. Calculus" value={name} onChange={e => setName(e.target.value)} />
           </div>
           <div className="mb-9">
@@ -104,7 +104,7 @@ export default function AddSubjectModal({ onClose, onAdd }) {
             />
           </div>
           <div className="mb-9">
-            <label htmlFor="subject-deadline" className="block text-sm text-text-secondary mb-3">Custom Deadline (Optional)</label>
+            <label htmlFor="subject-deadline" className="block text-sm text-text-secondary mb-3">Goal Deadline (Optional)</label>
             <DatePicker 
               id="subject-deadline" 
               value={deadline} 

@@ -29,7 +29,7 @@ export default function ManualLogModal({ onClose, onLog }) {
         <h2 className="text-medium mb-6 text-text-primary">Log Past Session</h2>
         <form id="manual-log-form" onSubmit={handleSubmit}>
           <div className="mb-9">
-            <label htmlFor="manual-log-subject" className="block text-sm text-text-secondary mb-3">Subject</label>
+            <label htmlFor="manual-log-subject" className="block text-sm text-text-secondary mb-3">Goal</label>
             <select id="manual-log-subject" className="input-field" required value={subjectId} onChange={(e) => setSubjectId(e.target.value)}>
               {state.subjects.map((s) => (
                 <option key={s.id} value={s.id} className="bg-background-main text-text-primary">{s.name}</option>
