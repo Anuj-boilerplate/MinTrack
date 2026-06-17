@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { animate } from 'framer-motion';
 import { useStateContext } from '../../contexts/StateContext';
-import { getDaysLeft, hexToRgba, getSessionRangeFromTimes, formatHoursToMins, getAccentColor } from '../../utils';
+import { getDaysLeft, hexToRgba, getSessionRangeFromTimes, formatHoursToMins, getAccentColor, getStartOfDay } from '../../utils';
 
 // Card gap (px) between card centers will be measured dynamically from the DOM at runtime.
 
@@ -25,10 +25,11 @@ const SubjectCard = memo(function SubjectCard({
   onSetAccentColor, onLogSession, onEditSubject, onDeleteSubject,
   isEditingMode, onEditingChange, style
 }) {
-  const { theme } = useStateContext();
+  const { theme, state } = useStateContext();
   const isLight = theme === 'light';
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isLogOpen, setIsLogOpen] = useState(false);
+  const [isStartHovered, setIsStartHovered] = useState(false);
   const [logDate, setLogDate] = useState(() => new Date().toISOString().split('T')[0]);
   const [logStartTime, setLogStartTime] = useState('');
   const [logEndTime, setLogEndTime] = useState('');
@@ -162,6 +163,17 @@ const SubjectCard = memo(function SubjectCard({
 
   const progressPct = sub.target_hours > 0 ? Math.min(100, (sub.valid_hours / sub.target_hours) * 100) : 0;
 
+  const subDeadlineDate = sub.deadline || state.term?.endDate;
+  const daysLeft = subDeadlineDate ? getDaysLeft(getStartOfDay(), subDeadlineDate) : 0;
+  const tHours = sub.target_hours || 0;
+  const vHours = sub.valid_hours || 0;
+  const dailyReq = daysLeft >= 0 ? (tHours - vHours) / Math.max(1, daysLeft) : 0;
+  const totalPressure = dailyReq + (sub.carryover || 0);
+
+  const todayHours = sub.completed_today || 0;
+  const todayTarget = totalPressure;
+  const todayProgressPct = todayTarget > 0 ? Math.min(100, (todayHours / todayTarget) * 100) : (todayHours > 0 ? 100 : 0);
+
   return (
     <article
       data-card-index={index}
@@ -223,6 +235,11 @@ const SubjectCard = memo(function SubjectCard({
             style={{ backgroundColor: hexToRgba(accentColor, 0.5) }}
           />
 
+          {/* Deadline note */}
+          {sub.deadline && (
+            <span className="font-mono text-[10px] text-text-secondary/30">{deadlineText}</span>
+          )}
+
           {/* PROGRESS Section */}
           <div className="flex flex-col w-full gap-2">
             <span
@@ -232,7 +249,7 @@ const SubjectCard = memo(function SubjectCard({
               PROGRESS
             </span>
             <div className="flex justify-between items-center text-text-primary/80 font-mono text-[12px] leading-none">
-              <span>{sub.valid_hours.toFixed(1)} / {sub.target_hours} hrs</span>
+              <span>{formatHoursToMins(sub.valid_hours)} / {formatHoursToMins(sub.target_hours)}</span>
               <span>{Math.round(progressPct)}%</span>
             </div>
             <div className="h-[2px] w-full bg-text-primary/10 rounded-full overflow-hidden mt-1">
@@ -246,52 +263,28 @@ const SubjectCard = memo(function SubjectCard({
             </div>
           </div>
 
-          {/* RECENT Section */}
+          {/* TODAY'S PROGRESS Section */}
           {!isPickerOpen && (
             <div className="flex flex-col w-full gap-2 mt-1">
               <span
                 className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase"
                 style={{ color: hexToRgba(accentColor, 0.7) }}
               >
-                RECENT
+                TODAY'S PROGRESS
               </span>
-              {(() => {
-                const recentSessions = (sub.sessions || [])
-                  .filter(session => !session.is_discarded)
-                  .sort((a, b) => new Date(b.start_time) - new Date(a.start_time))
-                  .slice(0, 3);
-
-                if (recentSessions.length === 0) {
-                  return (
-                    <div className="py-1">
-                      <p className="font-serif italic text-[14px] text-text-secondary/45">
-                        No sessions recorded yet.
-                      </p>
-                    </div>
-                  );
-                }
-
-                return (
-                  <div className="flex flex-col gap-2 mt-1 mb-4 recent-sessions-list">
-                    {recentSessions.map((session, sIdx) => {
-                      const start = new Date(session.start_time);
-                      const durationMin = session.duration_minutes ?? 0;
-                      const durHours = durationMin / 60;
-
-                      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-                      const dateText = !isNaN(start) ? `${months[start.getMonth()]} ${start.getDate()}` : '';
-
-                      return (
-                        <div key={session.id || sIdx} className="flex justify-between items-center text-[13px] text-text-secondary/60 font-sans">
-                          <span className="text-text-primary/70">Session</span>
-                          <span className="font-mono text-text-secondary/40 text-xs ml-auto mr-4">{dateText}</span>
-                          <span className="font-mono text-text-primary/70">{durHours > 0 ? `${durHours.toFixed(1)}h` : '0h'}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
+              <div className="flex justify-between items-center text-text-primary/80 font-mono text-[12px] leading-none">
+                <span>{formatHoursToMins(todayHours)} / {formatHoursToMins(todayTarget)}</span>
+                <span>{Math.round(todayProgressPct)}%</span>
+              </div>
+              <div className="h-[2px] w-full bg-text-primary/10 rounded-full overflow-hidden mt-1">
+                <div
+                  className="h-full transition-all duration-300"
+                  style={{
+                    width: `${todayProgressPct}%`,
+                    backgroundColor: accentColor
+                  }}
+                />
+              </div>
             </div>
           )}
         </div>
@@ -301,10 +294,20 @@ const SubjectCard = memo(function SubjectCard({
           <div className="flex items-center gap-3">
             <button
               onClick={handleStartSessionClick}
-              className="text-[13px] text-text-primary hover:opacity-85 transition-opacity font-sans flex items-center gap-1 cursor-pointer focus:outline-none"
+              onMouseEnter={() => setIsStartHovered(true)}
+              onMouseLeave={() => setIsStartHovered(false)}
+              className="px-4 py-1.5 rounded-full text-[13px] font-medium border transition-all flex items-center gap-1.5 cursor-pointer focus:outline-none"
+              style={{
+                borderColor: accentColor,
+                color: accentColor,
+                backgroundColor: isStartHovered ? hexToRgba(accentColor, 0.08) : 'transparent'
+              }}
               type="button"
             >
-              <span>→ Start session</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="5 3 19 12 5 21 5 3"></polygon>
+              </svg>
+              <span>Start session</span>
             </button>
             <span className="text-text-secondary/20 text-xs select-none">•</span>
             <button
@@ -319,11 +322,6 @@ const SubjectCard = memo(function SubjectCard({
               <span>+ Log session</span>
             </button>
           </div>
-          {sub.deadline && (
-            <span className="font-mono text-text-secondary/50 text-[12px]">
-              {deadlineText}
-            </span>
-          )}
         </div>
 
         {/* Inline Color Picker */}
@@ -652,7 +650,7 @@ function computeCardStyle(cardIndex, fractionalActiveIndex, stride) {
 // ---------------------------------------------------------------------------
 // HomeScreen
 // ---------------------------------------------------------------------------
-export default function HomeScreen({ onOpenModal, onLogSession, onEditSubject, onDeleteSubject }) {
+export default function HomeScreen({ onOpenModal, onLogSession, onEditSubject, onDeleteSubject, onStartSession }) {
   const { state, setSubjectAccentColor, theme } = useStateContext();
   const [activeIndex, setActiveIndex] = useState(0);
   const [prevSubjects, setPrevSubjects] = useState(state.subjects);
@@ -957,6 +955,7 @@ export default function HomeScreen({ onOpenModal, onLogSession, onEditSubject, o
                   onLogSession={onLogSession}
                   onEditSubject={onEditSubject}
                   onDeleteSubject={onDeleteSubject}
+                  onStartSession={onStartSession}
                   isEditingMode={editingSubjectId === sub.id}
                   onEditingChange={(editing) => handleEditingChange(sub.id, editing)}
                   style={{ transform, opacity, zIndex }}
