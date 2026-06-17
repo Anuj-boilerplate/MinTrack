@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState } from 'react';
 import { useStateContext } from '../../contexts/StateContext';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getAccentColor } from '../../utils';
 
 // Helper to convert hex to rgba
 function hexToRgba(hex, opacity) {
@@ -23,10 +24,6 @@ const ACCENT_COLORS = [
   { name: 'Antique Gold', hex: '#b8960c' }
 ];
 
-const getDefaultColorHex = (index) => {
-  return ACCENT_COLORS[index % ACCENT_COLORS.length].hex;
-};
-
 // Date Formatter Helper (e.g. MAY 20)
 function formatTodoDeadline(dateStr) {
   if (!dateStr) return '';
@@ -44,8 +41,10 @@ export default function TodoScreen() {
     toggleTodoCompleted,
     toggleTodoScheduled,
     deleteTodo,
-    setSubjectAccentColor
+    setSubjectAccentColor,
+    theme
   } = useStateContext();
+  const isLight = theme === 'light';
 
   const [activePicker, setActivePicker] = useState(null); // ID of subject with open color picker
   const [addingTaskForSub, setAddingTaskForSub] = useState(null); // ID of subject adding task
@@ -82,7 +81,7 @@ export default function TodoScreen() {
     if (lowercaseName.includes('internship') || index === 0) {
       return {
         icon: (
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/20">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary/20">
             <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
             <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
           </svg>
@@ -93,7 +92,7 @@ export default function TodoScreen() {
     } else if (lowercaseName.includes('leetcode') || index === 1) {
       return {
         icon: (
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/20">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary/20">
             <polyline points="16 18 22 12 16 6"></polyline>
             <polyline points="8 6 2 12 8 18"></polyline>
           </svg>
@@ -104,7 +103,7 @@ export default function TodoScreen() {
     } else if (lowercaseName.includes('subject 3') || index === 2) {
       return {
         icon: (
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/20">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary/20">
             <polygon points="12 2 15 9 22 12 15 15 12 22 9 15 2 12 9 9 12 2"></polygon>
           </svg>
         ),
@@ -114,7 +113,7 @@ export default function TodoScreen() {
     } else if (lowercaseName.includes('subject 4') || index === 3) {
       return {
         icon: (
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/20">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary/20">
             <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 3.5 1 9.8a7 7 0 0 1-9 8.2Z"></path>
             <path d="M19 2c-2.26 4.33-5.27 7.14-8 10"></path>
           </svg>
@@ -125,7 +124,7 @@ export default function TodoScreen() {
     } else {
       return {
         icon: (
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-white/20">
+          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary/20">
             <path d="M2 12c4-4 8-4 12 0s8 4 12 0"></path>
             <path d="M2 17c4-4 8-4 12 0s8 4 12 0"></path>
           </svg>
@@ -137,14 +136,8 @@ export default function TodoScreen() {
   };
 
   return (
-    <div id="todo-screen" className="dashboard-shell px-8 py-10 md:px-12 md:py-12 min-h-screen text-text-primary select-none animate-[screenFade_0.6s_cubic-bezier(0.25,0.46,0.45,0.94)]">
-      <div
-        style={{
-          columns: '420px',
-          columnGap: '2rem',
-          width: '100%'
-        }}
-      >
+    <div id="todo-screen" className="pt-2 pb-12 min-h-screen text-text-primary select-none animate-[screenFade_0.6s_cubic-bezier(0.25,0.46,0.45,0.94)]">
+      <div className="todo-masonry-grid" style={{ width: '100%' }}>
         {state.subjects.map((sub, index) => {
           const accentColor = sub.accentColor || '#c97b6e';
           const cardTodos = state.todos.filter(t => t.subject_id === sub.id);
@@ -164,28 +157,28 @@ export default function TodoScreen() {
           return (
             <div
               key={sub.id}
-              style={{ breakInside: 'avoid', marginBottom: '2rem', display: 'inline-block', width: '100%' }}
+              className="todo-card-wrapper"
             >
               <div
-                className="flex flex-col rounded-[12px] p-[28px] transition-all duration-300"
+                className="flex flex-col rounded-[12px] p-5 sm:p-[28px] transition-all duration-300"
                 style={{
-                  backgroundColor: '#1a1a1a',
+                  backgroundColor: 'var(--card-bg)',
                   backgroundImage: `linear-gradient(${hexToRgba(accentColor, 0.04)}, ${hexToRgba(accentColor, 0.04)})`,
-                  border: '1px solid rgba(255, 255, 255, 0.08)'
+                  border: '1px solid var(--border-glass)'
                 }}
               >
               <div className="flex flex-col w-full">
                 {/* Header */}
                 <div className="flex justify-between items-center mb-6">
                   <h2 
-                    className="font-serif text-[34px] font-normal leading-tight select-text"
+                    className="font-serif text-[26px] sm:text-[34px] font-normal leading-tight select-text"
                     style={{ color: accentColor }}
                   >
                     {sub.name.trim()}
                   </h2>
                   <button
                     onClick={() => setActivePicker(isPickerOpen ? null : sub.id)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-white/40 hover:text-white/80 transition-colors"
+                    className="w-8 h-8 rounded-full flex items-center justify-center text-text-secondary/40 hover:text-text-primary transition-colors"
                     type="button"
                     title="Choose accent color"
                   >
@@ -208,7 +201,7 @@ export default function TodoScreen() {
                       transition={{ duration: 0.3 }}
                       className="flex flex-col w-full py-4"
                     >
-                      <div className="flex justify-between items-center mb-5 text-[13px] text-white/60">
+                      <div className="flex justify-between items-center mb-5 text-[13px] text-text-secondary/60">
                         <span>Choose your accent color</span>
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60">
                           <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 14.7255 3.09032 17.1962 4.85857 19C5.35483 19.5 5.5 20 5.5 20.5C5.5 21.3284 6.17157 22 7 22H12Z"></path>
@@ -221,7 +214,7 @@ export default function TodoScreen() {
 
                       <div className="grid grid-cols-4 gap-4 mb-6">
                         {ACCENT_COLORS.map((color) => {
-                          const isSelected = accentColor === color.hex;
+                          const isSelected = accentColor === getAccentColor(color.hex, isLight);
                           return (
                             <button
                               key={color.name}
@@ -234,15 +227,15 @@ export default function TodoScreen() {
                             >
                               <div
                                 className="w-12 h-12 rounded-[8px] relative flex items-center justify-center transition-transform group-hover:scale-105"
-                                style={{ backgroundColor: color.hex }}
+                                style={{ backgroundColor: getAccentColor(color.hex, isLight) }}
                               >
                                 {isSelected && (
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a1a1a" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#ffffff" : "#1a1a1a"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                                     <polyline points="20 6 9 17 4 12"></polyline>
                                   </svg>
                                 )}
                               </div>
-                              <span className="text-[10px] text-white/40 mt-1 text-center truncate w-full group-hover:text-white/60">
+                              <span className="text-[10px] text-text-secondary/40 mt-1 text-center truncate w-full group-hover:text-text-secondary/60">
                                 {color.name}
                               </span>
                             </button>
@@ -250,7 +243,7 @@ export default function TodoScreen() {
                         })}
                       </div>
 
-                      <p className="text-[11px] text-white/40 text-center">
+                      <p className="text-[11px] text-text-secondary/40 text-center">
                         This will update the look of your goal.
                       </p>
                     </motion.div>
@@ -283,10 +276,10 @@ export default function TodoScreen() {
                             <div className="mb-3">
                               {getEmptyStateContent(index, sub.name).icon}
                             </div>
-                            <p className="font-serif italic text-[15px] text-white/35 leading-relaxed">
+                            <p className="font-serif italic text-[15px] text-text-secondary/35 leading-relaxed">
                               {getEmptyStateContent(index, sub.name).text1}
                             </p>
-                            <p className="font-serif italic text-[15px] text-white/35 leading-relaxed">
+                            <p className="font-serif italic text-[15px] text-text-secondary/35 leading-relaxed">
                               {getEmptyStateContent(index, sub.name).text2}
                             </p>
                           </div>
@@ -312,27 +305,27 @@ export default function TodoScreen() {
                                     {/* Checkbox */}
                                     <button
                                       onClick={() => toggleTodoCompleted(todo.id)}
-                                      className="w-5 h-5 rounded-[4px] border border-white/20 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors focus:outline-none"
+                                      className="w-5 h-5 rounded-[4px] border border-text-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors focus:outline-none"
                                       style={{
                                         backgroundColor: todo.is_completed ? accentColor : 'transparent',
-                                        borderColor: todo.is_completed ? accentColor : 'rgba(255,255,255,0.2)'
+                                        borderColor: todo.is_completed ? accentColor : (isLight ? 'rgba(92, 80, 68, 0.25)' : 'rgba(255, 255, 255, 0.2)')
                                       }}
                                       type="button"
                                     >
                                       {todo.is_completed && (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#16120e" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#ffffff" : "#16120e"} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
                                           <polyline points="20 6 9 17 4 12"></polyline>
                                         </svg>
                                       )}
                                     </button>
                                     <div className="flex flex-col min-w-0">
                                       <span 
-                                        className={`font-sans text-[15px] font-normal leading-normal truncate ${todo.is_completed ? 'line-through text-white/40' : 'text-white/85'}`}
+                                        className={`font-sans text-[15px] font-normal leading-normal truncate ${todo.is_completed ? 'line-through text-text-secondary/40' : 'text-text-primary/85'}`}
                                       >
                                         {todo.title}
                                       </span>
                                       {todo.note && (
-                                        <span className="font-sans text-[13px] text-white/40 leading-normal truncate">
+                                        <span className="font-sans text-[13px] text-text-secondary/40 leading-normal truncate">
                                           {todo.note}
                                         </span>
                                       )}
@@ -341,13 +334,13 @@ export default function TodoScreen() {
                                   
                                   <div className="flex items-center gap-2 ml-2 flex-shrink-0">
                                     {todo.deadline && (
-                                      <span className="font-mono text-[12px] text-white/35 mt-1 self-start">
+                                      <span className="font-mono text-[12px] text-text-secondary/35 mt-1 self-start">
                                         {formatTodoDeadline(todo.deadline)}
                                       </span>
                                     )}
                                     <button
                                       onClick={() => deleteTodo(todo.id)}
-                                      className="opacity-0 group-hover:opacity-100 transition-opacity text-white/30 hover:text-red-400/70 focus:outline-none p-0.5"
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity text-text-secondary/30 hover:text-red-400/70 focus:outline-none p-0.5"
                                       type="button"
                                       title="Delete task"
                                     >
@@ -394,7 +387,7 @@ export default function TodoScreen() {
                                   animate={{ opacity: 1, y: 0 }}
                                   exit={{ opacity: 0, y: 5 }}
                                   transition={{ duration: 0.3, ease: 'easeOut' }}
-                                  className="flex items-start justify-between group py-1 text-white/55"
+                                  className="flex items-start justify-between group py-1 text-text-secondary/55"
                                 >
                                   <div className="flex items-start gap-3 flex-1 min-w-0">
                                     {/* Priority left rule */}
@@ -403,14 +396,14 @@ export default function TodoScreen() {
                                       style={{ backgroundColor: accentColor }}
                                     />
                                     {/* Checkbox (Disabled in backlog) */}
-                                    <div className="w-5 h-5 rounded-[4px] border border-white/10 flex items-center justify-center flex-shrink-0 mt-0.5 opacity-50 cursor-not-allowed bg-transparent" />
+                                    <div className="w-5 h-5 rounded-[4px] border border-text-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5 opacity-50 cursor-not-allowed bg-transparent" />
                                     
                                     <div className="flex flex-col min-w-0">
                                       <span className="font-sans text-[15px] font-normal leading-normal truncate">
                                         {todo.title}
                                       </span>
                                       {todo.note && (
-                                        <span className="font-sans text-[13px] text-white/40 leading-normal truncate">
+                                        <span className="font-sans text-[13px] text-text-secondary/40 leading-normal truncate">
                                           {todo.note}
                                         </span>
                                       )}
@@ -421,21 +414,21 @@ export default function TodoScreen() {
                                     {/* Hover Today Button */}
                                     <button
                                       onClick={() => toggleTodoScheduled(todo.id)}
-                                      className="opacity-0 group-hover:opacity-100 transition-opacity bg-white/5 hover:bg-white/10 border border-white/10 px-2 py-0.5 rounded text-[11px] text-white/70 hover:text-white"
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity bg-text-primary/5 hover:bg-text-primary/10 border border-text-primary/10 px-2 py-0.5 rounded text-[11px] text-text-primary/70 hover:text-text-primary"
                                       type="button"
                                     >
                                       → Today
                                     </button>
 
                                     {todo.deadline && (
-                                      <span className="font-mono text-[12px] text-white/35 self-start">
+                                      <span className="font-mono text-[12px] text-text-secondary/35 self-start">
                                         {formatTodoDeadline(todo.deadline)}
                                       </span>
                                     )}
 
                                     <button
                                       onClick={() => deleteTodo(todo.id)}
-                                      className="opacity-0 group-hover:opacity-100 transition-opacity text-white/30 hover:text-red-400/70 focus:outline-none p-0.5"
+                                      className="opacity-0 group-hover:opacity-100 transition-opacity text-text-secondary/30 hover:text-red-400/70 focus:outline-none p-0.5"
                                       type="button"
                                       title="Delete task"
                                     >
@@ -458,7 +451,7 @@ export default function TodoScreen() {
                             animate={{ opacity: 1, height: 'auto' }}
                             exit={{ opacity: 0, height: 0 }}
                             transition={{ duration: 0.3 }}
-                            className="bg-black/20 border border-white/5 rounded-[8px] p-4 space-y-3 mb-4"
+                            className="bg-black/20 border border-text-primary/5 rounded-[8px] p-4 space-y-3 mb-4"
                           >
                             <input
                               type="text"
@@ -466,7 +459,7 @@ export default function TodoScreen() {
                               value={newTaskName}
                               onChange={(e) => setNewTaskName(e.target.value)}
                               onKeyDown={(e) => handleKeyDown(e, sub.id)}
-                              className="w-full bg-white/5 border border-white/10 rounded px-3 py-1.5 text-[14px] text-white placeholder-white/20 focus:outline-none focus:border-white/30"
+                              className="w-full bg-text-primary/5 border border-text-primary/10 rounded px-3 py-1.5 text-[14px] text-text-primary/90 placeholder-text-secondary/35 focus:outline-none focus:border-text-primary/30"
                               autoFocus
                             />
                             <input
@@ -475,30 +468,30 @@ export default function TodoScreen() {
                               value={newTaskNote}
                               onChange={(e) => setNewTaskNote(e.target.value)}
                               onKeyDown={(e) => handleKeyDown(e, sub.id)}
-                              className="w-full bg-white/5 border border-white/10 rounded px-3 py-1.5 text-[13px] text-white/70 placeholder-white/20 focus:outline-none focus:border-white/30"
+                              className="w-full bg-text-primary/5 border border-text-primary/10 rounded px-3 py-1.5 text-[13px] text-text-primary/70 placeholder-text-secondary/35 focus:outline-none focus:border-text-primary/30"
                             />
                             <div className="grid grid-cols-2 gap-3">
                               <input
                                 type="date"
                                 value={newTaskDeadline}
                                 onChange={(e) => setNewTaskDeadline(e.target.value)}
-                                className="bg-white/5 border border-white/10 rounded px-2 py-1 text-[12px] text-white/70 focus:outline-none focus:border-white/30 w-full"
+                                className="bg-text-primary/5 border border-text-primary/10 rounded px-2 py-1 text-[12px] text-text-primary/70 focus:outline-none focus:border-text-primary/30 w-full"
                               />
                               <select
                                 value={newTaskPriority}
                                 onChange={(e) => setNewTaskPriority(e.target.value)}
-                                className="bg-white/5 border border-white/10 rounded px-2 py-1 text-[12px] text-white/70 focus:outline-none focus:border-white/30 w-full"
+                                className="bg-text-primary/5 border border-text-primary/10 rounded px-2 py-1 text-[12px] text-text-primary/70 focus:outline-none focus:border-text-primary/30 w-full"
                               >
-                                <option value="low" className="bg-[#1a1a1a]">Low Priority</option>
-                                <option value="medium" className="bg-[#1a1a1a]">Medium Priority</option>
-                                <option value="high" className="bg-[#1a1a1a]">High Priority</option>
+                                <option value="low" className="bg-[var(--bg-secondary)] text-[var(--text-primary)]">Low Priority</option>
+                                <option value="medium" className="bg-[var(--bg-secondary)] text-[var(--text-primary)]">Medium Priority</option>
+                                <option value="high" className="bg-[var(--bg-secondary)] text-[var(--text-primary)]">High Priority</option>
                               </select>
                             </div>
 
                             <div className="flex justify-end gap-2 pt-1 text-[12px]">
                               <button
                                 onClick={() => setAddingTaskForSub(null)}
-                                className="px-3 py-1 text-white/50 hover:text-white/80"
+                                className="px-3 py-1 text-text-secondary/50 hover:text-text-primary"
                                 type="button"
                               >
                                 Cancel
@@ -522,7 +515,7 @@ export default function TodoScreen() {
                               setNewTaskDeadline('');
                               setNewTaskPriority('low');
                             }}
-                            className="text-[13px] text-white/40 hover:text-white/70 transition-colors flex items-center gap-1.5 focus:outline-none"
+                            className="text-[13px] text-text-secondary/40 hover:text-text-primary/70 transition-colors flex items-center gap-1.5 focus:outline-none"
                             type="button"
                           >
                             <span>+ Add task</span>

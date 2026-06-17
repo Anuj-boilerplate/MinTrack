@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { getStartOfDay } from '../utils';
+import { getStartOfDay, getAccentColor } from '../utils';
 import { addActionToQueue, processSyncQueue } from '../lib/syncQueue';
 
 // Debounced sync trigger for todo mutations — batches rapid actions into one flush
@@ -32,7 +32,7 @@ function normalizeSubject(subject) {
     paused_time_total: Number(subject.paused_time_total ?? 0),
     paused_time_today: Number(subject.paused_time_today ?? 0),
     deadline: subject.deadline ? new Date(subject.deadline).toISOString() : null,
-    accentColor: subject.accentColor || '#c97b6e',
+    accentColor: subject.accent_color || subject.accentColor || '#c97b6e',
     sessions: subject.sessions || []
   };
 }
@@ -63,7 +63,9 @@ function normalizeState(rawState = {}) {
 
   return {
     term: normalizedTerm,
-    subjects: Array.isArray(rawState.subjects) ? rawState.subjects.map(normalizeSubject) : [],
+    subjects: Array.isArray(rawState.subjects) 
+      ? rawState.subjects.map(normalizeSubject).sort((a, b) => a.name.localeCompare(b.name)) 
+      : [],
     todos: Array.isArray(rawState.todos) ? rawState.todos.map(normalizeTodo) : [],
     activeSession: rawState.activeSession ? {
       ...rawState.activeSession,
@@ -84,6 +86,48 @@ export const StateProvider = ({ children, session }) => {
   
   const [loading, setLoading] = useState(true);
   const initializedUserRef = useRef(null);
+
+  const [theme, setTheme] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('theme') || 'dark';
+    }
+    return 'dark';
+  });
+
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [transitionToTheme, setTransitionToTheme] = useState(null);
+
+  const toggleTheme = useCallback(() => {
+    if (isTransitioning) return; // Ignore clicks if already transitioning
+
+    setTheme(prev => {
+      const next = prev === 'dark' ? 'light' : 'dark';
+      // Store in local storage but DO NOT apply data-theme here. 
+      // The overlay applies it exactly on frame 0 to avoid flashing.
+      localStorage.setItem('theme', next);
+      setTransitionToTheme(next);
+      setIsTransitioning(true);
+      return prev; // Keep current theme in React state until overlay is ready to switch
+    });
+  }, [isTransitioning]);
+
+  const onTransitionDone = useCallback(() => {
+    setTheme(transitionToTheme);
+    setIsTransitioning(false);
+    setTransitionToTheme(null);
+  }, [transitionToTheme]);
+
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'theme') {
+        const nextTheme = e.newValue || 'dark';
+        setTheme(nextTheme);
+        document.documentElement.setAttribute('data-theme', nextTheme);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
   const pendingSaveStateRef = useRef(null);
   const saveTimeoutRef = useRef(null);
 
@@ -151,10 +195,11 @@ export const StateProvider = ({ children, session }) => {
       }
 
       // Sync with Supabase
-      const [{ data: dbProfile }, { data: dbSubjects }, { data: dbTodos }] = await Promise.all([
+      const [{ data: dbProfile }, { data: dbSubjects }, { data: dbTodos }, { data: dbSessions }] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
         supabase.from('subjects').select('*').eq('user_id', userId),
-        supabase.from('todos').select('*')
+        supabase.from('todos').select('*'),
+        supabase.from('sessions').select('*')
       ]);
 
       // Profile (Term) Reconciliation
@@ -168,16 +213,43 @@ export const StateProvider = ({ children, session }) => {
       if (dbSubjects?.length > 0) {
         patchedState.subjects = dbSubjects.map(dbSub => {
           const localSub = patchedState.subjects.find(ls => ls.id === dbSub.id) || {};
+          const subjectSessions = dbSessions ? dbSessions.filter(s => s.subject_id === dbSub.id) : [];
+          
+          const sessionsMap = new Map();
+          subjectSessions.forEach(s => sessionsMap.set(s.id, s));
+          (localSub.sessions || []).forEach(s => {
+            if (!sessionsMap.has(s.id)) {
+              sessionsMap.set(s.id, s);
+            }
+          });
+          const mergedSessions = Array.from(sessionsMap.values());
+          
+          const calculatedValidHours = mergedSessions
+            .filter(s => !s.is_discarded)
+            .reduce((sum, s) => sum + (s.duration_minutes || 0) / 60, 0);
+
           return {
             ...dbSub,
-            valid_hours: Math.max(dbSub.valid_hours || 0, localSub.valid_hours || 0),
+            valid_hours: Math.max(dbSub.valid_hours || 0, localSub.valid_hours || 0, calculatedValidHours),
             completed_today: localSub.completed_today || 0,
             paused_time_today: localSub.paused_time_today || 0,
-            paused_time_total: localSub.paused_time_total || 0
+            paused_time_total: localSub.paused_time_total || 0,
+            accent_color: dbSub.accent_color || localSub.accentColor || '#c97b6e',
+            accentColor: dbSub.accent_color || localSub.accentColor || '#c97b6e',
+            sessions: mergedSessions
           };
         });
+        patchedState.subjects.sort((a, b) => a.name.localeCompare(b.name));
       } else if (patchedState.subjects.length > 0) {
-        const toInsert = patchedState.subjects.map(s => ({ ...s, user_id: userId }));
+        const toInsert = patchedState.subjects.map(s => {
+          // eslint-disable-next-line no-unused-vars
+          const { accentColor, sessions, ...rest } = s;
+          return { 
+            ...rest, 
+            accent_color: accentColor || s.accent_color || '#c97b6e',
+            user_id: userId 
+          };
+        });
         await supabase.from('subjects').upsert(toInsert);
       }
 
@@ -277,6 +349,9 @@ export const StateProvider = ({ children, session }) => {
   const updateState = useCallback((updater) => {
     setState(prev => {
       const candidate = typeof updater === 'function' ? updater(prev) : { ...prev, ...updater };
+      if (candidate.subjects) {
+        candidate.subjects = [...candidate.subjects].sort((a, b) => a.name.localeCompare(b.name));
+      }
       const next = {
         ...candidate,
         last_updated_date: candidate.last_updated_date || new Date().toISOString()
@@ -411,17 +486,37 @@ export const StateProvider = ({ children, session }) => {
     }
   }, [userId, updateState]);
 
-  const setSubjectAccentColor = useCallback((subjectId, color) => {
+  const setSubjectAccentColor = useCallback(async (subjectId, color) => {
     updateState(prev => ({
       ...prev,
       subjects: prev.subjects.map(s =>
-        s.id === subjectId ? { ...s, accentColor: color } : s
+        s.id === subjectId ? { ...s, accentColor: color, accent_color: color } : s
       )
     }));
-  }, [updateState]);
+
+    if (userId) {
+      await addActionToQueue({
+        type: 'UPDATE_SUBJECT',
+        subjectId,
+        payload: { accent_color: color }
+      });
+      scheduleTodoSync();
+    }
+  }, [userId, updateState]);
+
+  const mappedSubjects = useMemo(() => {
+    const isLight = theme === 'light';
+    return state.subjects.map(s => ({
+      ...s,
+      accentColor: getAccentColor(s.accent_color || s.accentColor || '#c97b6e', isLight)
+    }));
+  }, [state.subjects, theme]);
 
   const stateContextValue = useMemo(() => ({
-    state,
+    state: {
+      ...state,
+      subjects: mappedSubjects
+    },
     updateState,
     loading,
     addTodo,
@@ -429,8 +524,13 @@ export const StateProvider = ({ children, session }) => {
     toggleTodoScheduled,
     deleteTodo,
     updateTodoTitle,
-    setSubjectAccentColor
-  }), [state, updateState, loading, addTodo, toggleTodoCompleted, toggleTodoScheduled, deleteTodo, updateTodoTitle, setSubjectAccentColor]);
+    setSubjectAccentColor,
+    theme,
+    toggleTheme,
+    isTransitioning,
+    transitionToTheme,
+    onTransitionDone
+  }), [state, mappedSubjects, updateState, loading, addTodo, toggleTodoCompleted, toggleTodoScheduled, deleteTodo, updateTodoTitle, setSubjectAccentColor, theme, toggleTheme, isTransitioning, transitionToTheme, onTransitionDone]);
 
   const userContextValue = useMemo(() => ({
     userId,

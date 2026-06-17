@@ -62,3 +62,21 @@ export function hexToRgba(hex, opacity) {
     return `rgba(${r}, ${g}, ${b}, ${opacity})`;
 }
 
+export function getAccentColor(savedColor, isLight) {
+    const color = savedColor || '#c97b6e';
+    if (!isLight) return color;
+    
+    switch (color.toLowerCase()) {
+        case '#c97b6e': return '#a84551'; // Dusty Rose -> Crimson Ink
+        case '#6b8f71': return '#4d7044'; // Sage Green -> Moss Green Ink
+        case '#c49a3c': return '#99693b'; // Warm Amber -> Sepia Amber Ink
+        case '#5b7a99': return '#3d5e7a'; // Slate Blue -> Slate Blue Ink
+        case '#8b82b8': return '#6946a3'; // Muted Lavender -> Plum Ink
+        case '#b5603a': return '#a8563b'; // Terracotta -> Terracotta Ink
+        case '#4a8c8c': return '#2b7a7a'; // Soft Teal -> Teal Ink
+        case '#b8960c': return '#a27e05'; // Antique Gold -> Saturated Antique Gold
+        default: return color;
+    }
+}
+
+

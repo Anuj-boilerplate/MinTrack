@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 
 const TABS = [
   { id: 'goals', label: 'Goals' },
@@ -18,10 +19,10 @@ export default function Navbar({ activeTab, onTabChange }) {
       if (activeTabEl && containerEl) {
         const activeRect = activeTabEl.getBoundingClientRect();
         const containerRect = containerEl.getBoundingClientRect();
-        
+
         const left = activeRect.left - containerRect.left;
         const width = activeRect.width;
-        
+
         setLensStyle({
           left,
           width,
@@ -36,7 +37,13 @@ export default function Navbar({ activeTab, onTabChange }) {
   }, [activeTab]);
 
   return (
-    <nav className="floating-navbar-container">
+    <motion.nav
+      className="floating-navbar-container"
+      initial={{ y: '120px', opacity: 0 }}
+      animate={{ y: 0, opacity: 1 }}
+      exit={{ y: '120px', opacity: 0 }}
+      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+    >
       <div className="floating-navbar" ref={containerRef}>
         {/* Animated Lens Slider */}
         <div
@@ -47,7 +54,7 @@ export default function Navbar({ activeTab, onTabChange }) {
             opacity: lensStyle.opacity,
           }}
         />
-        
+
         {/* Tab Buttons */}
         {TABS.map((tab) => (
           <button
@@ -61,6 +68,6 @@ export default function Navbar({ activeTab, onTabChange }) {
           </button>
         ))}
       </div>
-    </nav>
+    </motion.nav>
   );
 }

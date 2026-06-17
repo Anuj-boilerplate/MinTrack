@@ -13,14 +13,16 @@ import TodoScreen from './components/screens/TodoScreen';
 import AnalyticsScreen from './components/screens/AnalyticsScreen';
 
 import AddSubjectModal from './components/modals/AddSubjectModal';
-import EditSubjectModal from './components/modals/EditSubjectModal';
-import ManualLogModal from './components/modals/ManualLogModal';
+
 import SettingsModal from './components/modals/SettingsModal';
 import PomodoroConfigModal from './components/modals/PomodoroConfigModal';
 import SessionReviewModal from './components/modals/SessionReviewModal';
 import UpdateModal from './components/modals/UpdateModal';
 import { getSessionRangeFromTimes } from './utils';
 import { APP_VERSION } from './config';
+import { AnimatePresence, motion } from 'framer-motion';
+import TopBar from './components/TopBar';
+import ThemeTransitionOverlay from './components/ThemeTransitionOverlay';
 
 import './index.css';
 
@@ -38,7 +40,7 @@ function scheduleSyncQueue() {
 
 // The inner app that has access to the StateContext
 function AppContent() {
-  const { state, updateState, loading } = useStateContext();
+  const { state, updateState, loading, isTransitioning, transitionToTheme, onTransitionDone } = useStateContext();
   const { userId } = useUserContext();
   const timer = useTimer(state, updateState);
 
@@ -120,7 +122,8 @@ function AppContent() {
           name: name,
           target_hours: target,
           valid_hours: 0,
-          deadline: deadline
+          deadline: deadline,
+          accent_color: '#c97b6e'
         }
       });
       scheduleSyncQueue();
@@ -162,26 +165,39 @@ function AppContent() {
     }
   };
 
-  const handleManualLog = async (subjectId, startStr, endStr, durationMins) => {
+  const handleManualLog = async (subjectId, startStr, endStr, durationMins, dateStr) => {
     const hours = durationMins / 60;
-    const range = getSessionRangeFromTimes(startStr, endStr);
+    const refDate = dateStr ? new Date(dateStr) : new Date();
+    const range = getSessionRangeFromTimes(startStr, endStr, refDate);
     const sub = state.subjects.find((s) => s.id === subjectId);
     const newValidHours = (sub?.valid_hours || 0) + hours;
+
+    const newSession = {
+      id: crypto.randomUUID(),
+      subject_id: subjectId,
+      start_time: range?.start.toISOString() || refDate.toISOString(),
+      end_time: range?.end.toISOString() || refDate.toISOString(),
+      duration_minutes: durationMins,
+      is_discarded: false
+    };
+
+    const isToday = new Date(refDate).toDateString() === new Date().toDateString();
 
     updateState(prev => ({
       ...prev,
       subjects: prev.subjects.map(s => s.id === subjectId
-        ? { ...s, valid_hours: newValidHours, completed_today: (s.completed_today || 0) + hours }
+        ? {
+          ...s,
+          valid_hours: newValidHours,
+          completed_today: (s.completed_today || 0) + (isToday ? hours : 0),
+          sessions: [newSession, ...(s.sessions || [])]
+        }
         : s)
     }));
     setActiveModal(null);
 
     await addSessionToQueue({
-      subject_id: subjectId,
-      start_time: range?.start.toISOString() || new Date().toISOString(),
-      end_time: range?.end.toISOString() || new Date().toISOString(),
-      duration_minutes: durationMins,
-      is_discarded: false,
+      ...newSession,
       new_valid_hours: newValidHours
     });
 
@@ -193,21 +209,31 @@ function AppContent() {
     const sub = state.subjects.find((s) => s.id === data.subjectId);
     const newValidHours = (sub?.valid_hours || 0) + data.hours;
 
+    const newSession = {
+      id: crypto.randomUUID(),
+      subject_id: data.subjectId,
+      start_time: data.startTime,
+      end_time: new Date().toISOString(),
+      duration_minutes: data.hours * 60,
+      is_discarded: false
+    };
+
     updateState(prev => ({
       ...prev,
       subjects: prev.subjects.map(s => s.id === data.subjectId
-        ? { ...s, valid_hours: newValidHours, completed_today: (s.completed_today || 0) + data.hours }
+        ? {
+          ...s,
+          valid_hours: newValidHours,
+          completed_today: (s.completed_today || 0) + data.hours,
+          sessions: [newSession, ...(s.sessions || [])]
+        }
         : s)
     }));
     setActiveModal(null);
     setSessionReviewData(null);
 
     await addSessionToQueue({
-      subject_id: data.subjectId,
-      start_time: data.startTime,
-      end_time: new Date().toISOString(),
-      duration_minutes: data.hours * 60,
-      is_discarded: false,
+      ...newSession,
       new_valid_hours: newValidHours
     });
 
@@ -224,56 +250,92 @@ function AppContent() {
 
   const currentModal = activeModal?.type;
   const activeSubjectData = activeModal?.subjectId ? state.subjects.find(s => s.id === activeModal.subjectId) : null;
+  const activeAccentColor = activeSubjectData?.accentColor || '#c97b6e';
 
   return (
     <div className={`app-shell ${currentModal ? 'modal-active' : ''}`}>
       {!state.term ? (
         <SetupScreen />
-      ) : state.activeSession ? (
-        <TimerScreen timer={timer} onStop={handleStopSession} />
       ) : (
         <>
-          {activeTab === 'goals' && (
-            <HomeScreen
-              onOpenModal={handleOpenModal}
-            />
-          )}
-          {activeTab === 'todo' && <TodoScreen />}
-          {activeTab === 'analytics' && <AnalyticsScreen />}
-          <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
+          <TopBar onOpenSettings={() => handleOpenModal('settings')} />
+          <AnimatePresence mode="wait">
+            {state.activeSession ? (
+              <TimerScreen key="timer-screen" timer={timer} onStop={handleStopSession} />
+            ) : (
+              <div key="main-app" className="contents">
+                <motion.div
+                  className="flex-grow flex flex-col w-full"
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  {activeTab === 'goals' && (
+                    <HomeScreen
+                      onOpenModal={handleOpenModal}
+                      onLogSession={handleManualLog}
+                      onEditSubject={handleEditSubject}
+                      onDeleteSubject={handleDeleteSubject}
+                    />
+                  )}
+                  {activeTab === 'todo' && <TodoScreen />}
+                  {activeTab === 'analytics' && <AnalyticsScreen />}
+                </motion.div>
+                <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
+              </div>
+            )}
+          </AnimatePresence>
         </>
       )}
 
+      {isTransitioning && (
+        <ThemeTransitionOverlay targetTheme={transitionToTheme} onDone={onTransitionDone} />
+      )}
+
       {/* Modals */}
-      {currentModal === 'addSubject' && <AddSubjectModal onClose={() => setActiveModal(null)} onAdd={handleAddSubject} />}
-      {currentModal === 'editSubject' && <EditSubjectModal key={activeSubjectData?.id} subject={activeSubjectData} onClose={() => setActiveModal(null)} onSave={handleEditSubject} onDelete={handleDeleteSubject} />}
-      {currentModal === 'manualLog' && <ManualLogModal onClose={() => setActiveModal(null)} onLog={handleManualLog} />}
-      {currentModal === 'settings' && <SettingsModal onClose={() => setActiveModal(null)} />}
+      <AnimatePresence mode="wait">
+        {currentModal === 'addSubject' && (
+          <AddSubjectModal key="addSubject" onClose={() => setActiveModal(null)} onAdd={handleAddSubject} />
+        )}
 
-      {currentModal === 'pomodoro' && (
-        <PomodoroConfigModal
-          onClose={() => setActiveModal(null)}
-          onStart={(config) => {
-            timer.startFocusSession(activeModal.subjectId, config);
-            setActiveModal(null);
-          }}
-        />
-      )}
+        {currentModal === 'settings' && (
+          <SettingsModal key="settings" onClose={() => setActiveModal(null)} />
+        )}
 
-      {currentModal === 'sessionReview' && (
-        <SessionReviewModal
-          reviewData={sessionReviewData}
-          onSave={handleSaveSession}
-          onDiscard={handleDiscardSession}
-        />
-      )}
+        {currentModal === 'pomodoro' && (
+          <PomodoroConfigModal
+            key="pomodoro"
+            subjectId={activeModal.subjectId}
+            accentColor={activeAccentColor}
+            onClose={() => setActiveModal(null)}
+            onStart={(config) => {
+              timer.startFocusSession(activeModal.subjectId, config);
+              setActiveModal(null);
+            }}
+          />
+        )}
 
-      {currentModal === 'update' && (
-        <UpdateModal onClose={() => {
-          localStorage.setItem(`seen_update_${APP_VERSION}`, "true");
-          setActiveModal(null);
-        }} />
-      )}
+        {currentModal === 'sessionReview' && (
+          <SessionReviewModal
+            key="sessionReview"
+            reviewData={sessionReviewData}
+            accentColor={activeAccentColor}
+            onSave={handleSaveSession}
+            onDiscard={handleDiscardSession}
+          />
+        )}
+
+        {currentModal === 'update' && (
+          <UpdateModal
+            key="update"
+            onClose={() => {
+              localStorage.setItem(`seen_update_${APP_VERSION}`, "true");
+              setActiveModal(null);
+            }}
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

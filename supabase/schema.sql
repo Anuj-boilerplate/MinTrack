@@ -12,7 +12,8 @@ create table if not exists public.subjects (
   name text not null,
   target_hours numeric(10,2) not null default 0,
   valid_hours numeric(10,2) not null default 0,
-  deadline timestamptz
+  deadline timestamptz,
+  accent_color text not null default '#c97b6e'
 );
 
 create table if not exists public.sessions (

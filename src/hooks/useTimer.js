@@ -6,7 +6,7 @@ export function useTimer(state, updateState) {
   const [phaseInfo, setPhaseInfo] = useState({ phase: 'Focus Phase', phaseClass: 'focus-tag', cycleText: 'Cycle 1' });
   const [dailyProgressPct, setDailyProgressPct] = useState(0);
   const [isDone, setIsDone] = useState(false);
-  
+
   const workerRef = useRef(null);
   const audioCtxRef = useRef(null);
   const stateRef = useRef(state);
@@ -52,6 +52,7 @@ export function useTimer(state, updateState) {
     updateState({
       activeSession: {
         subjectId,
+        taskId: uiSettings?.taskId || null,
         startTime,
         startedAt: new Date(startTime).toISOString(),
         ui: uiSettings,
@@ -103,7 +104,7 @@ export function useTimer(state, updateState) {
       const daysLeft = getDaysLeft(getStartOfDay(), subDeadline);
       const tHours = sub.target_hours || 0;
       const vHours = sub.valid_hours || 0;
-      
+
       const dailyReq = daysLeft >= 0 ? (tHours - vHours) / Math.max(1, daysLeft) : 0;
       const totalPressure = dailyReq + (sub.carryover || 0);
 
@@ -169,13 +170,13 @@ export function useTimer(state, updateState) {
     const bMs = activeSession.ui.breakLength * 60000;
     const cycleMs = fMs + bMs;
     const maxMs = activeSession.ui.cycles * cycleMs;
-    
-    if (rawElapsedMs > maxMs) rawElapsedMs = maxMs; 
-    
+
+    if (rawElapsedMs > maxMs) rawElapsedMs = maxMs;
+
     const fullCycles = Math.floor(rawElapsedMs / cycleMs);
     const remainder = rawElapsedMs % cycleMs;
     const netFocusMs = (fullCycles * fMs) + Math.min(remainder, fMs);
-    
+
     return netFocusMs / (1000 * 60 * 60);
   };
 
@@ -207,13 +208,13 @@ export function useTimer(state, updateState) {
     };
   }, [state.activeSession, updateTimerDisplay]);
 
-  return { 
-    startFocusSession, 
-    displayTime, 
-    phaseInfo, 
-    dailyProgressPct, 
-    isDone, 
-    calculateNetFocusTime, 
+  return {
+    startFocusSession,
+    displayTime,
+    phaseInfo,
+    dailyProgressPct,
+    isDone,
+    calculateNetFocusTime,
     clearSession,
     pause,
     resume,
