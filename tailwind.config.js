@@ -35,7 +35,9 @@ export default {
       },
       fontFamily: {
         main: ['Space Grotesk', 'sans-serif'],
-        heading: ['Space Grotesk', 'sans-serif']
+        heading: ['Space Grotesk', 'sans-serif'],
+        serif: ['"Cormorant Garamond"', 'Georgia', 'serif'],
+        sans: ['Inter', 'sans-serif']
       },
       boxShadow: {
         glass: '0 4px 30px var(--glass-shadow)',

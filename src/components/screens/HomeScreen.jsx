@@ -1,364 +1,1010 @@
-import { useEffect, useState, useCallback, useMemo, memo } from 'react';
+import { useEffect, useState, useCallback, useRef, memo } from 'react';
+import { animate } from 'framer-motion';
 import { useStateContext } from '../../contexts/StateContext';
-import { getDaysLeft, formatHoursToMins, formatISODateForDisplay } from '../../utils';
+import { getDaysLeft, hexToRgba, getSessionRangeFromTimes, formatHoursToMins, getAccentColor } from '../../utils';
+
+// Card gap (px) between card centers will be measured dynamically from the DOM at runtime.
 
 // ---------------------------------------------------------------------------
-// SubjectCard — memo'd child component to prevent redundant card re-renders
+// SubjectCard — receives a stable data-index; transforms applied imperatively
+// by the carousel so this component NEVER re-renders during drag.
 // ---------------------------------------------------------------------------
-const SubjectCard = memo(function SubjectCard({ sub, isSelected, onSelect, onOpenModal, termEndDate }) {
-  const today = new Date();
-  const targetHours = parseFloat(sub.target_hours) || 0;
-  const validHours = parseFloat(sub.valid_hours) || 0;
-  const pct = targetHours > 0 ? Math.min((validHours / targetHours) * 100, 100) : 0;
+const ACCENT_COLORS = [
+  { name: 'Dusty Rose', hex: '#c97b6e' },
+  { name: 'Sage Green', hex: '#6b8f71' },
+  { name: 'Warm Amber', hex: '#c49a3c' },
+  { name: 'Slate Blue', hex: '#5b7a99' },
+  { name: 'Muted Lavender', hex: '#8b82b8' },
+  { name: 'Terracotta', hex: '#b5603a' },
+  { name: 'Soft Teal', hex: '#4a8c8c' },
+  { name: 'Antique Gold', hex: '#b8960c' }
+];
 
-  const subDeadline = sub.deadline || termEndDate;
-  const subDaysLeft = subDeadline ? getDaysLeft(today, subDeadline) : 0;
-  const isSubCompleted = validHours >= targetHours;
-  const isSubOverdue = subDaysLeft < 0 && !isSubCompleted;
+const SubjectCard = memo(function SubjectCard({
+  sub, index, isActive, onSelect, onOpenModal,
+  onSetAccentColor, onLogSession, onEditSubject, onDeleteSubject,
+  isEditingMode, onEditingChange, style
+}) {
+  const { theme } = useStateContext();
+  const isLight = theme === 'light';
+  const [isPickerOpen, setIsPickerOpen] = useState(false);
+  const [isLogOpen, setIsLogOpen] = useState(false);
+  const [logDate, setLogDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [logStartTime, setLogStartTime] = useState('');
+  const [logEndTime, setLogEndTime] = useState('');
+
+  // Edit-in-place state
+  const [editName, setEditName] = useState(sub.name);
+  const [editTarget, setEditTarget] = useState(String(sub.target_hours || ''));
+  const [editDeadline, setEditDeadline] = useState(
+    sub.deadline ? sub.deadline.split('T')[0] : ''
+  );
+
+  const pickerRef = useRef(null);
+  const logFormRef = useRef(null);
+
+  // Calculate dynamic duration for log form display
+  const sessionRange = (logStartTime && logEndTime)
+    ? getSessionRangeFromTimes(logStartTime, logEndTime, logDate ? new Date(logDate) : new Date())
+    : null;
+  const durationMins = sessionRange ? sessionRange.durationMinutes : 0;
+
+  // ── Sync edit fields when subject data changes (e.g. after a save) ────────
+  useEffect(() => {
+    if (!isEditingMode) {
+      /* eslint-disable react-hooks/set-state-in-effect */
+      setEditName(sub.name);
+      setEditTarget(String(sub.target_hours || ''));
+      setEditDeadline(sub.deadline ? sub.deadline.split('T')[0] : '');
+      /* eslint-enable react-hooks/set-state-in-effect */
+    }
+  }, [sub.name, sub.target_hours, sub.deadline, isEditingMode]);
 
   const handleCardClick = useCallback((e) => {
     e.stopPropagation();
-    onSelect(sub.id);
-
-  }, [sub.id, onSelect]);
-
-  const handleEditClick = useCallback((e) => {
-    e.stopPropagation();
-    onOpenModal('editSubject', sub.id);
-  }, [sub.id, onOpenModal]);
+    onSelect(index);
+  }, [index, onSelect]);
 
   const handleStartSessionClick = useCallback((e) => {
     e.stopPropagation();
     onOpenModal('pomodoro', sub.id);
   }, [sub.id, onOpenModal]);
 
-  return (
-    <article
-      className={`subject-card glass-surface ${isSelected ? 'selected' : ''}`}
-      onClick={handleCardClick}
-    >
-      <div className="flex justify-between items-start gap-4 mb-12">
-        <div className="min-w-0">
-          <button type="button" className="subject-select" onClick={handleCardClick}>
-            <span className="text-medium text-text-primary block truncate">{sub.name}</span>
-          </button>
-          <p className="text-tiny text-text-muted mt-3">{formatHoursToMins(validHours)} of {targetHours}h complete</p>
-          {sub.deadline && (
-            <p className={`text-tiny mt-2 ${subDaysLeft < 0 && !isSubCompleted ? 'text-[#b86d60]' : 'text-text-muted opacity-80'}`}>
-              Deadline: {formatISODateForDisplay(sub.deadline)}
-            </p>
-          )}
-        </div>
+  const handleLogSubmit = useCallback((e) => {
+    e.stopPropagation();
+    if (!logStartTime || !logEndTime) return;
 
-        <button
-          className="subject-edit-button"
-          title="Edit Subject"
-          onClick={handleEditClick}
-          type="button"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 20h9"></path>
-            <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path>
-          </svg>
-        </button>
-      </div>
+    const refDate = logDate ? new Date(logDate) : new Date();
+    const range = getSessionRangeFromTimes(logStartTime, logEndTime, refDate);
+    const diffMins = range?.durationMinutes ?? 0;
 
-      <div className="subject-progress-block">
-        <div className="progress-track">
-          <div className="progress-fill" style={{ width: `${pct}%` }}></div>
-        </div>
-      </div>
+    if (diffMins <= 0) {
+      alert('Sessions must be greater than 0 minutes long to count.');
+      return;
+    }
 
-      <div className="mt-auto pt-12">
-        {isSubCompleted ? (
-          <button className="session-launch-btn w-full opacity-70 cursor-not-allowed text-[#d3a36c] border-[rgba(211,163,108,0.3)]" disabled type="button">
-            Completed
-          </button>
-        ) : isSubOverdue ? (
-          <button className="session-launch-btn w-full opacity-80 cursor-not-allowed bg-[rgba(184,109,96,0.15)] text-[#b86d60] border-[rgba(184,109,96,0.3)]" disabled type="button">
-            Overdue
-          </button>
-        ) : subDaysLeft >= 0 ? (
-          <button className="session-launch-btn w-full" onClick={handleStartSessionClick} type="button">
-            Start Session
-          </button>
-        ) : (
-          <button className="session-launch-btn w-full opacity-60 cursor-not-allowed" disabled type="button">
-            Finished
-          </button>
-        )}
-      </div>
-    </article>
-  );
-}, (prevProps, nextProps) => {
-  return prevProps.sub === nextProps.sub &&
-    prevProps.isSelected === nextProps.isSelected &&
-    prevProps.termEndDate === nextProps.termEndDate;
-});
+    if (onLogSession) {
+      onLogSession(sub.id, logStartTime, logEndTime, diffMins, logDate);
+    }
+    setIsLogOpen(false);
+    setLogStartTime('');
+    setLogEndTime('');
+    setLogDate(new Date().toISOString().split('T')[0]);
+  }, [logStartTime, logEndTime, logDate, onLogSession, sub.id]);
 
-export default function HomeScreen({ onOpenModal, toggleTheme }) {
-  const { state } = useStateContext();
-  const [selectedSubjectId, setSelectedSubjectId] = useState(null);
-  const [prevSubjects, setPrevSubjects] = useState(state.subjects);
+  // ── Edit submit / cancel ──────────────────────────────────────────────────
+  const handleEditSave = useCallback((e) => {
+    e.stopPropagation();
+    const parsedTarget = parseFloat(editTarget);
+    if (!editName.trim() || isNaN(parsedTarget) || parsedTarget < 1) return;
+    onEditSubject(
+      sub.id,
+      editName.trim(),
+      parsedTarget,
+      editDeadline ? new Date(editDeadline).toISOString() : null
+    );
+    onEditingChange(false);
+  }, [editName, editTarget, editDeadline, sub.id, onEditSubject, onEditingChange]);
 
-  // Derived-state pattern (React docs recommended): synchronize selectedSubjectId
-  // with the subjects list during render rather than in a useEffect, which would
-  // add a wasted extra render cycle after every subjects change.
-  if (state.subjects !== prevSubjects) {
-    setPrevSubjects(state.subjects);
-    if (!state.subjects.length) {
-      setSelectedSubjectId(null);
-    } else if (selectedSubjectId !== null && !state.subjects.some((subject) => subject.id === selectedSubjectId)) {
-      setSelectedSubjectId(null);
+  const handleEditCancel = useCallback((e) => {
+    e.stopPropagation();
+    setEditName(sub.name);
+    setEditTarget(String(sub.target_hours || ''));
+    setEditDeadline(sub.deadline ? sub.deadline.split('T')[0] : '');
+    onEditingChange(false);
+  }, [sub.name, sub.target_hours, sub.deadline, onEditingChange]);
+
+  const handleDelete = useCallback((e) => {
+    e.stopPropagation();
+    if (confirm('Delete this goal? This cannot be undone.')) {
+      onDeleteSubject(sub.id);
+      onEditingChange(false);
+    }
+  }, [sub.id, onDeleteSubject, onEditingChange]);
+
+  // ── Outside-click handlers for picker / log form ──────────────────────────
+  useEffect(() => {
+    if (!isPickerOpen) return;
+    const handleOutsideClick = (e) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target)) {
+        setIsPickerOpen(false);
+      }
+    };
+    document.addEventListener('click', handleOutsideClick);
+    return () => document.removeEventListener('click', handleOutsideClick);
+  }, [isPickerOpen]);
+
+  useEffect(() => {
+    if (!isLogOpen) return;
+    const handleOutsideClick = (e) => {
+      const cardEl = logFormRef.current?.closest('.coverflow-card');
+      if (cardEl && !cardEl.contains(e.target) && !e.target.closest('.modal-backdrop') && !e.target.closest('.modal-pane')) {
+        setIsLogOpen(false);
+      }
+    };
+    document.addEventListener('pointerdown', handleOutsideClick);
+    return () => document.removeEventListener('pointerdown', handleOutsideClick);
+  }, [isLogOpen]);
+
+  const colorIndex = index % 8;
+  const accentColor = sub.accentColor || '#c97b6e';
+  const daysUntilDeadline = sub.deadline ? getDaysLeft(new Date(), sub.deadline) : null;
+  let deadlineText = '';
+  if (daysUntilDeadline !== null) {
+    if (daysUntilDeadline > 0) {
+      deadlineText = `${daysUntilDeadline} days left`;
+    } else if (daysUntilDeadline === 0) {
+      deadlineText = 'Due today';
+    } else {
+      deadlineText = 'Deadline passed';
     }
   }
 
-  useEffect(() => {
-    const handleGlobalClick = (e) => {
-      // If the click is inside a subject card or a modal, don't deselect
-      if (e.target.closest('.subject-card') || e.target.closest('.modal-backdrop')) {
-        return;
-      }
-      setSelectedSubjectId(null);
-    };
+  const progressPct = sub.target_hours > 0 ? Math.min(100, (sub.valid_hours / sub.target_hours) * 100) : 0;
 
-    window.addEventListener('click', handleGlobalClick);
-    return () => window.removeEventListener('click', handleGlobalClick);
+  return (
+    <article
+      data-card-index={index}
+      className={`coverflow-card glass-surface card-theme-${colorIndex}${isActive ? ' active' : ''}${isEditingMode ? ' card-editing' : ''}`}
+      style={style}
+    >
+      {/* ── VIEW LAYER ─────────────────────────────────────────────────────── */}
+      <div
+        className="flex flex-col w-full h-full justify-between card-layer"
+        style={{
+          opacity: (isEditingMode || isLogOpen) ? 0 : 1,
+          pointerEvents: (isEditingMode || isLogOpen) ? 'none' : 'auto',
+          transition: 'opacity 0.25s ease',
+          position: 'absolute',
+          inset: 0,
+          padding: 'inherit',
+        }}
+      >
+        {/* Top/Body Area */}
+        <div className="flex flex-col w-full gap-5">
+          {/* Header Row */}
+          <div className="flex justify-between items-start gap-4">
+            <button
+              type="button"
+              className="subject-select text-left min-w-0 flex-1 focus:outline-none"
+              onClick={handleCardClick}
+            >
+              <h2
+                className="font-serif text-[28px] font-normal leading-tight tracking-wide truncate"
+                style={{ color: isActive ? accentColor : hexToRgba(accentColor, 0.3) }}
+              >
+                {sub.name.trim()}
+              </h2>
+            </button>
+
+            {isActive && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsPickerOpen(prev => !prev);
+                  setIsLogOpen(false);
+                }}
+                className="w-8 h-8 rounded-full flex items-center justify-center text-text-secondary/40 hover:text-text-primary transition-colors focus:outline-none flex-shrink-0"
+                type="button"
+                title="Choose accent color"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="1"></circle>
+                  <circle cx="19" cy="12" r="1"></circle>
+                  <circle cx="5" cy="12" r="1"></circle>
+                </svg>
+              </button>
+            )}
+          </div>
+
+          {/* Hairline */}
+          <div
+            className="h-[1px] w-full mt-1"
+            style={{ backgroundColor: hexToRgba(accentColor, 0.5) }}
+          />
+
+          {/* PROGRESS Section */}
+          <div className="flex flex-col w-full gap-2">
+            <span
+              className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase"
+              style={{ color: hexToRgba(accentColor, 0.7) }}
+            >
+              PROGRESS
+            </span>
+            <div className="flex justify-between items-center text-text-primary/80 font-mono text-[12px] leading-none">
+              <span>{sub.valid_hours.toFixed(1)} / {sub.target_hours} hrs</span>
+              <span>{Math.round(progressPct)}%</span>
+            </div>
+            <div className="h-[2px] w-full bg-text-primary/10 rounded-full overflow-hidden mt-1">
+              <div
+                className="h-full transition-all duration-300"
+                style={{
+                  width: `${progressPct}%`,
+                  backgroundColor: accentColor
+                }}
+              />
+            </div>
+          </div>
+
+          {/* RECENT Section */}
+          {!isPickerOpen && (
+            <div className="flex flex-col w-full gap-2 mt-1">
+              <span
+                className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase"
+                style={{ color: hexToRgba(accentColor, 0.7) }}
+              >
+                RECENT
+              </span>
+              {(() => {
+                const recentSessions = (sub.sessions || [])
+                  .filter(session => !session.is_discarded)
+                  .sort((a, b) => new Date(b.start_time) - new Date(a.start_time))
+                  .slice(0, 3);
+
+                if (recentSessions.length === 0) {
+                  return (
+                    <div className="py-1">
+                      <p className="font-serif italic text-[14px] text-text-secondary/45">
+                        No sessions recorded yet.
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="flex flex-col gap-2 mt-1 mb-4 recent-sessions-list">
+                    {recentSessions.map((session, sIdx) => {
+                      const start = new Date(session.start_time);
+                      const durationMin = session.duration_minutes ?? 0;
+                      const durHours = durationMin / 60;
+
+                      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+                      const dateText = !isNaN(start) ? `${months[start.getMonth()]} ${start.getDate()}` : '';
+
+                      return (
+                        <div key={session.id || sIdx} className="flex justify-between items-center text-[13px] text-text-secondary/60 font-sans">
+                          <span className="text-text-primary/70">Session</span>
+                          <span className="font-mono text-text-secondary/40 text-xs ml-auto mr-4">{dateText}</span>
+                          <span className="font-mono text-text-primary/70">{durHours > 0 ? `${durHours.toFixed(1)}h` : '0h'}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+        </div>
+
+        {/* CTA row */}
+        <div className="flex justify-between items-center mt-auto pt-6 border-t border-text-primary/5">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleStartSessionClick}
+              className="text-[13px] text-text-primary hover:opacity-85 transition-opacity font-sans flex items-center gap-1 cursor-pointer focus:outline-none"
+              type="button"
+            >
+              <span>→ Start session</span>
+            </button>
+            <span className="text-text-secondary/20 text-xs select-none">•</span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsLogOpen(prev => !prev);
+                setIsPickerOpen(false);
+              }}
+              className="text-[13px] text-text-secondary/60 hover:text-text-primary hover:opacity-100 transition-all font-sans flex items-center gap-1 cursor-pointer focus:outline-none"
+              type="button"
+            >
+              <span>+ Log session</span>
+            </button>
+          </div>
+          {sub.deadline && (
+            <span className="font-mono text-text-secondary/50 text-[12px]">
+              {deadlineText}
+            </span>
+          )}
+        </div>
+
+        {/* Inline Color Picker */}
+        <div
+          ref={pickerRef}
+          className="overflow-hidden transition-all duration-300 ease-in-out"
+          style={{
+            maxHeight: isPickerOpen ? '200px' : '0px',
+            opacity: isPickerOpen ? 1 : 0,
+            marginTop: isPickerOpen ? '1rem' : '0px'
+          }}
+        >
+          <div className="flex flex-col w-full py-2 border-t border-text-primary/5">
+            <div className="flex justify-between items-center mb-3 text-[11px] text-text-secondary/50">
+              <span>Choose accent color</span>
+            </div>
+
+            <div className="grid grid-cols-4 gap-2.5 mb-2">
+              {ACCENT_COLORS.map((color) => {
+                const isSelected = accentColor === getAccentColor(color.hex, isLight);
+                return (
+                  <button
+                    key={color.name}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSetAccentColor(sub.id, color.hex);
+                    }}
+                    className="flex flex-col items-center group focus:outline-none"
+                    type="button"
+                  >
+                    <div
+                      className="w-8 h-8 rounded-[6px] relative flex items-center justify-center transition-transform group-hover:scale-105"
+                      style={{
+                        backgroundColor: getAccentColor(color.hex, isLight),
+                        boxShadow: isSelected ? `0 0 0 2px ${isLight ? 'rgba(0, 0, 0, 0.25)' : 'rgba(255, 255, 255, 0.4)'}` : 'none'
+                      }}
+                    >
+                      {isSelected && (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#ffffff" : "#1a1a1a"} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                      )}
+                    </div>
+                    <span className="text-[9px] text-text-secondary/30 mt-1 text-center truncate w-full group-hover:text-text-secondary/50">
+                      {color.name}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      {/* ── LOG SESSION LAYER ────────────────────────────────────────────────── */}
+      <div
+        ref={logFormRef}
+        className="flex flex-col w-full h-full justify-between card-layer"
+        style={{
+          opacity: isLogOpen ? 1 : 0,
+          pointerEvents: isLogOpen ? 'auto' : 'none',
+          transition: 'opacity 0.25s ease',
+          position: 'absolute',
+          inset: 0,
+          padding: 'inherit',
+          background: 'var(--card-bg)',
+          borderRadius: 'inherit',
+          zIndex: 10
+        }}
+      >
+        {/* Log header */}
+        <div className="flex flex-col gap-5 w-full">
+          <div className="flex justify-between items-center">
+            <span
+              className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase"
+              style={{ color: hexToRgba(accentColor, 0.7) }}
+            >
+              LOG SESSION
+            </span>
+          </div>
+
+          {/* Hairline */}
+          <div
+            className="h-[1px] w-full"
+            style={{ backgroundColor: hexToRgba(accentColor, 0.5) }}
+          />
+
+          {/* Date field */}
+          <div className="flex flex-col gap-1.5">
+            <label className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase text-text-secondary/40">
+              Date
+            </label>
+            <input
+              type="date"
+              value={logDate}
+              onChange={(e) => setLogDate(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full bg-text-primary/5 border border-text-primary/10 rounded-lg px-3 py-2 text-[13px] font-mono text-text-primary/70 focus:outline-none focus:border-text-primary/30 transition-colors"
+            />
+          </div>
+
+          {/* Times Row */}
+          <div className="flex gap-4">
+            <div className="flex-1 flex flex-col gap-1.5">
+              <label className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase text-text-secondary/40">
+                Start Time
+              </label>
+              <input
+                type="time"
+                value={logStartTime}
+                onChange={(e) => setLogStartTime(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full bg-text-primary/5 border border-text-primary/10 rounded-lg px-3 py-2 text-[13px] font-mono text-text-primary/70 focus:outline-none focus:border-text-primary/30 transition-colors"
+              />
+            </div>
+            <div className="flex-1 flex flex-col gap-1.5">
+              <label className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase text-text-secondary/40">
+                End Time
+              </label>
+              <input
+                type="time"
+                value={logEndTime}
+                onChange={(e) => setLogEndTime(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className="w-full bg-text-primary/5 border border-text-primary/10 rounded-lg px-3 py-2 text-[13px] font-mono text-text-primary/70 focus:outline-none focus:border-text-primary/30 transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* Duration display */}
+          {durationMins > 0 && (
+            <div className="flex justify-between items-center text-xs text-text-secondary/60 font-sans px-1 mt-1">
+              <span>Calculated Duration:</span>
+              <span className="font-mono text-white font-medium" style={{ color: accentColor }}>
+                {formatHoursToMins(durationMins / 60)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {/* Log CTA */}
+        <div className="flex justify-between items-center mt-auto pt-5 border-t border-text-primary/5">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsLogOpen(false);
+            }}
+            className="text-[13px] text-text-secondary/40 hover:text-text-primary/70 transition-colors font-sans focus:outline-none"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleLogSubmit}
+            disabled={!logStartTime || !logEndTime || durationMins <= 0}
+            className="px-4 py-1.5 rounded-lg text-[13px] text-white font-medium hover:brightness-110 transition-all focus:outline-none disabled:opacity-40 disabled:pointer-events-none"
+            style={{ backgroundColor: accentColor }}
+          >
+            Log Time
+          </button>
+        </div>
+      </div>
+
+      {/* ── EDIT LAYER ─────────────────────────────────────────────────────── */}
+      <div
+        className="flex flex-col w-full h-full justify-between card-layer"
+        style={{
+          opacity: isEditingMode ? 1 : 0,
+          pointerEvents: isEditingMode ? 'auto' : 'none',
+          transition: 'opacity 0.25s ease',
+          position: 'absolute',
+          inset: 0,
+          padding: 'inherit',
+        }}
+      >
+        {/* Edit header */}
+        <div className="flex flex-col gap-5 w-full">
+          <div className="flex justify-between items-center">
+            <span
+              className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase"
+              style={{ color: hexToRgba(accentColor, 0.7) }}
+            >
+              EDITING
+            </span>
+            <button
+              type="button"
+              onClick={handleDelete}
+              className="w-7 h-7 rounded-full flex items-center justify-center text-text-secondary/30 hover:text-red-400 hover:bg-red-400/10 transition-all focus:outline-none"
+              title="Delete goal"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 6h18"></path>
+                <path d="M8 6V4h8v2"></path>
+                <path d="M19 6l-1 14H6L5 6"></path>
+                <path d="M10 11v6"></path>
+                <path d="M14 11v6"></path>
+              </svg>
+            </button>
+          </div>
+
+          {/* Hairline */}
+          <div
+            className="h-[1px] w-full"
+            style={{ backgroundColor: hexToRgba(accentColor, 0.5) }}
+          />
+
+          {/* Name field */}
+          <div className="flex flex-col gap-1.5">
+            <label className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase text-text-secondary/40">
+              Goal Name
+            </label>
+            <input
+              type="text"
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              onKeyDown={(e) => { if (e.key === 'Enter') e.preventDefault(); }}
+              className="w-full bg-text-primary/5 border border-text-primary/10 rounded-lg px-3 py-2 text-[15px] font-serif text-text-primary/90 focus:outline-none focus:border-text-primary/30 transition-colors"
+              style={{ caretColor: accentColor }}
+            />
+          </div>
+
+          {/* Target Hours field */}
+          <div className="flex flex-col gap-1.5">
+            <label className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase text-text-secondary/40">
+              Target Hours
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditTarget(p => String(Math.max(1, (parseInt(p) || 1) - 1)));
+                }}
+                className="w-8 h-8 rounded-lg bg-text-primary/5 border border-text-primary/10 text-text-secondary/60 hover:text-text-primary hover:bg-text-primary/10 transition-all focus:outline-none flex items-center justify-center text-lg leading-none"
+              >−</button>
+              <input
+                type="number"
+                min="1"
+                value={editTarget}
+                onChange={(e) => setEditTarget(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className="flex-1 bg-text-primary/5 border border-text-primary/10 rounded-lg px-3 py-2 text-[15px] font-mono text-text-primary/90 text-center focus:outline-none focus:border-text-primary/30 transition-colors"
+                style={{ caretColor: accentColor }}
+              />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setEditTarget(p => String((parseInt(p) || 0) + 1));
+                }}
+                className="w-8 h-8 rounded-lg bg-text-primary/5 border border-text-primary/10 text-text-secondary/60 hover:text-text-primary hover:bg-text-primary/10 transition-all focus:outline-none flex items-center justify-center text-lg leading-none"
+              >+</button>
+            </div>
+          </div>
+
+          {/* Deadline field */}
+          <div className="flex flex-col gap-1.5">
+            <label className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase text-text-secondary/40">
+              Deadline <span className="normal-case text-text-secondary/25">(optional)</span>
+            </label>
+            <input
+              type="date"
+              value={editDeadline}
+              onChange={(e) => setEditDeadline(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              className="w-full bg-text-primary/5 border border-text-primary/10 rounded-lg px-3 py-2 text-[13px] font-mono text-text-primary/70 focus:outline-none focus:border-text-primary/30 transition-colors"
+            />
+          </div>
+        </div>
+
+        {/* Edit CTA */}
+        <div className="flex justify-between items-center mt-auto pt-5 border-t border-text-primary/5">
+          <button
+            type="button"
+            onClick={handleEditCancel}
+            className="text-[13px] text-text-secondary/40 hover:text-text-primary/70 transition-colors font-sans focus:outline-none"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={handleEditSave}
+            className="px-4 py-1.5 rounded-lg text-[13px] text-white font-medium hover:brightness-110 transition-all focus:outline-none"
+            style={{ backgroundColor: accentColor }}
+          >
+            Save changes
+          </button>
+        </div>
+      </div>
+    </article>
+  );
+}, (prev, next) =>
+  prev.sub === next.sub &&
+  prev.isActive === next.isActive &&
+  prev.index === next.index &&
+  prev.isEditingMode === next.isEditingMode
+);
+
+// ---------------------------------------------------------------------------
+// computeCardStyle — pure function, called both during drag (DOM mutation) and
+// during React render (initial + snap). Returns a CSS transform string +
+// supplemental style props.
+// ---------------------------------------------------------------------------
+function computeCardStyle(cardIndex, fractionalActiveIndex, stride) {
+  const offset = cardIndex - fractionalActiveIndex;
+  const absOffset = Math.abs(offset);
+  const direction = offset >= 0 ? 1 : -1;
+
+  const tx = offset * stride * 0.75;
+  const tz = -absOffset * 25;
+  const rotateY = direction * -8 * Math.min(1, absOffset);
+  const scale = Math.max(0.7, 1 - absOffset * 0.1);
+  const opacity = Math.max(0.5, 1 - absOffset * 0.25);
+  const zIndex = Math.round(100 - absOffset * 10);
+
+  return {
+    transform: `translate3d(${tx}px, 0, ${tz}px) rotateY(${rotateY}deg) scale(${scale})`,
+    opacity,
+    zIndex,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// HomeScreen
+// ---------------------------------------------------------------------------
+export default function HomeScreen({ onOpenModal, onLogSession, onEditSubject, onDeleteSubject }) {
+  const { state, setSubjectAccentColor, theme } = useStateContext();
+  const [activeIndex, setActiveIndex] = useState(0);
+  const [prevSubjects, setPrevSubjects] = useState(state.subjects);
+  const [editingSubjectId, setEditingSubjectId] = useState(null); // which card is being edited
+
+  // Refs for zero-re-render drag + long-press tracking
+  const trackRef = useRef(null);
+  const isDraggingRef = useRef(false);    // true once movement threshold exceeded
+  const isPointerDownRef = useRef(false); // true from pointerdown until pointerup
+  const startXRef = useRef(0);
+  const startYRef = useRef(0);
+  const liveOffsetRef = useRef(0);
+  const cardStrideRef = useRef(400);
+  const longPressTimerRef = useRef(null);
+
+  // Refs and state for entrance animation
+  const entranceAnimRef = useRef(null);
+  const isAnimatingEntranceRef = useRef(false);
+
+  const stopEntranceAnimation = useCallback(() => {
+    if (entranceAnimRef.current) {
+      entranceAnimRef.current.stop();
+      entranceAnimRef.current = null;
+      isAnimatingEntranceRef.current = false;
+    }
   }, []);
 
-  // daysLeft is intentionally not memoized — it's a single cheap date call and
-  // must read a fresh Date() on every render to stay accurate across midnight.
+  // ── Derived-state sync ────────────────────────────────────────────────────
+  if (state.subjects !== prevSubjects) {
+    setPrevSubjects(state.subjects);
+    if (!state.subjects.length) {
+      setActiveIndex(0);
+    } else {
+      setActiveIndex((prev) => Math.min(prev, state.subjects.length - 1));
+    }
+  }
+
+  // ── Apply transforms imperatively to all card DOM nodes ──────────────────
+  const applyTransforms = useCallback((fractionalActive, animated) => {
+    const track = trackRef.current;
+    if (!track) return;
+    const cards = track.querySelectorAll('[data-card-index]');
+    cards.forEach((card) => {
+      const i = parseInt(card.getAttribute('data-card-index'), 10);
+      const { transform, opacity, zIndex } = computeCardStyle(i, fractionalActive, cardStrideRef.current);
+      card.style.transform = transform;
+      card.style.opacity = opacity;
+      card.style.zIndex = zIndex;
+      card.style.transition = animated
+        ? 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1)'
+        : 'none';
+    });
+  }, []);
+
+  // After mount (and on resize), measure card width and update stride:
+  useEffect(() => {
+    const measure = () => {
+      const card = trackRef.current?.querySelector('[data-card-index]');
+      if (card) {
+        cardStrideRef.current = card.offsetWidth * 0.95;
+        if (!isAnimatingEntranceRef.current) {
+          applyTransforms(activeIndex, false);
+        }
+      }
+    };
+    measure();
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, [activeIndex, applyTransforms]);
+
+  // Apply transforms whenever activeIndex settles (React render → DOM sync)
+  useEffect(() => {
+    if (isAnimatingEntranceRef.current) return;
+    applyTransforms(activeIndex, true);
+  }, [activeIndex, state.subjects.length, applyTransforms]);
+
+  // ── Entrance animation sweep to middle card ──────────────────────────────
+  // Runs on every mount (tab switch remounts HomeScreen from scratch).
+  // Uses rAF to guarantee cards are painted before we read their widths.
+  useEffect(() => {
+    if (state.subjects.length === 0) return;
+
+    let rafId;
+    let controls;
+
+    const startSweep = () => {
+      const card = trackRef.current?.querySelector('[data-card-index]');
+      if (!card) return; // DOM not ready yet
+
+      // Measure stride now that cards are rendered
+      cardStrideRef.current = card.offsetWidth * 0.95;
+
+      const targetIndex = Math.floor(state.subjects.length / 2);
+
+      // Position cards at index 0 instantly with no transition
+      applyTransforms(0, false);
+      isAnimatingEntranceRef.current = true;
+
+      controls = animate(0, targetIndex, {
+        duration: 1.2,
+        ease: [0.25, 1, 0.5, 1],
+        onUpdate: (latest) => {
+          applyTransforms(latest, false);
+          const rounded = Math.round(latest);
+          setActiveIndex((prev) => (prev !== rounded ? rounded : prev));
+        },
+        onComplete: () => {
+          isAnimatingEntranceRef.current = false;
+          entranceAnimRef.current = null;
+          setActiveIndex(targetIndex);
+          applyTransforms(targetIndex, true);
+        },
+      });
+
+      entranceAnimRef.current = controls;
+    };
+
+    // Wait one rAF so React has flushed the DOM
+    rafId = requestAnimationFrame(startSweep);
+
+    return () => {
+      cancelAnimationFrame(rafId);
+      if (controls) controls.stop();
+      isAnimatingEntranceRef.current = false;
+      entranceAnimRef.current = null;
+    };
+  // Only re-run when the subjects list changes length (i.e. new mount or card added/removed)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.subjects.length]);
+
+  // ── Keyboard navigation ───────────────────────────────────────────────────
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if (editingSubjectId) {
+        if (e.key === 'Escape') setEditingSubjectId(null);
+        return;
+      }
+      if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') return;
+      if (e.key === 'ArrowLeft') {
+        stopEntranceAnimation();
+        setActiveIndex((i) => Math.max(0, i - 1));
+      } else if (e.key === 'ArrowRight') {
+        stopEntranceAnimation();
+        setActiveIndex((i) => Math.min(state.subjects.length - 1, i + 1));
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [state.subjects.length, editingSubjectId, stopEntranceAnimation]);
+
+  // Close editing mode on pointerdown outside the editing card
+  useEffect(() => {
+    if (!editingSubjectId) return;
+
+    const handleOutsidePointerDown = (e) => {
+      const editingCard = trackRef.current?.querySelector('.card-editing');
+      if (editingCard && !editingCard.contains(e.target) && !e.target.closest('.modal-backdrop') && !e.target.closest('.modal-pane')) {
+        setEditingSubjectId(null);
+      }
+    };
+
+    document.addEventListener('pointerdown', handleOutsidePointerDown);
+    return () => {
+      document.removeEventListener('pointerdown', handleOutsidePointerDown);
+    };
+  }, [editingSubjectId]);
+
+  // ── Unified pointer handlers (long-press + drag, mutually exclusive) ────────
+  //
+  // Strategy:
+  //   pointerdown  → record start pos, start 450ms long-press timer
+  //   pointermove  → if delta > 8px, CANCEL timer and switch to drag mode
+  //   pointerup    → cancel timer; if dragging, snap to nearest card
+  //
+  // Because we call setPointerCapture on the CONTAINER (not the card),
+  // all pointermove events reliably reach this single handler regardless
+  // of which child element was originally pressed. This prevents the
+  // previous bug where the card's own move handler never received events
+  // during a captured drag.
+  // ───────────────────────────────────────────────────────────────────────────
+  const onPointerDown = useCallback((e) => {
+    if (editingSubjectId) return;
+    if (e.button !== 0) return;
+    if (e.target.closest('button') || e.target.closest('input')) return;
+
+    stopEntranceAnimation();
+
+    isPointerDownRef.current = true;
+    isDraggingRef.current = false;
+    startXRef.current = e.clientX;
+    startYRef.current = e.clientY;
+    liveOffsetRef.current = 0;
+    e.currentTarget.setPointerCapture(e.pointerId);
+
+    // Start long-press countdown — only fires if we don't move
+    longPressTimerRef.current = setTimeout(() => {
+      if (isPointerDownRef.current && !isDraggingRef.current) {
+        const activeSubId = state.subjects[activeIndex]?.id;
+        if (activeSubId) setEditingSubjectId(activeSubId);
+      }
+    }, 450);
+  }, [editingSubjectId, activeIndex, stopEntranceAnimation]);
+
+  const onPointerMove = useCallback((e) => {
+    if (!isPointerDownRef.current) return;
+
+    const dx = e.clientX - startXRef.current;
+    const dy = e.clientY - startYRef.current;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+
+    if (!isDraggingRef.current && dist > 8) {
+      // Movement threshold exceeded — cancel long-press and enter drag mode
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+      isDraggingRef.current = true;
+      trackRef.current?.classList.add('dragging');
+    }
+
+    if (isDraggingRef.current) {
+      liveOffsetRef.current = -dx / cardStrideRef.current;
+      applyTransforms(activeIndex + liveOffsetRef.current, false);
+    }
+  }, [activeIndex, applyTransforms]);
+
+  const onPointerUp = useCallback((e) => {
+    if (!isPointerDownRef.current) return;
+    isPointerDownRef.current = false;
+    clearTimeout(longPressTimerRef.current);
+    longPressTimerRef.current = null;
+
+    if (isDraggingRef.current) {
+      isDraggingRef.current = false;
+      trackRef.current?.classList.remove('dragging');
+      const dx = e.clientX - startXRef.current;
+      const liveOffset = -dx / cardStrideRef.current;
+      const fractional = activeIndex + liveOffset;
+      let next = Math.round(fractional);
+      next = Math.max(0, Math.min(state.subjects.length - 1, next));
+      applyTransforms(next, true);
+      setActiveIndex(next);
+      liveOffsetRef.current = 0;
+    }
+  }, [activeIndex, state.subjects.length, applyTransforms]);
+
+  // Click on a flanking card to centre it
+  const onCardSelect = useCallback((idx) => {
+    stopEntranceAnimation();
+    setActiveIndex(idx);
+  }, [stopEntranceAnimation]);
+
+  const handleEditingChange = useCallback((subId, editing) => {
+    setEditingSubjectId(editing ? subId : null);
+  }, []);
+
+  // ── Derived ───────────────────────────────────────────────────────────────
   const daysLeft = state.term ? getDaysLeft(new Date(), state.term.endDate) : 0;
   const isTermEnded = daysLeft < 0;
 
-  // Memoized aggregate calculations
-  const { totalTarget, totalValid, dailyTargetRequired, dailyTargetCompleted, termPct, dailyPct } = useMemo(() => {
-    let targetAccumulator = 0;
-    let validAccumulator = 0;
-    let dailyTargetReqAccumulator = 0;
-    let dailyTargetCompAccumulator = 0;
+  const isAnyEditing = editingSubjectId !== null;
 
-    const todayVal = new Date();
-
-    state.subjects.forEach((sub) => {
-      const targetHours = parseFloat(sub.target_hours) || 0;
-      const validHours = parseFloat(sub.valid_hours) || 0;
-      const completedToday = sub.completed_today || 0;
-      targetAccumulator += targetHours;
-      validAccumulator += validHours;
-
-      const subjectDeadline = sub.deadline || (state.term ? state.term.endDate : null);
-      if (subjectDeadline) {
-        const subjectDaysLeft = getDaysLeft(todayVal, subjectDeadline);
-        if (subjectDaysLeft >= 0) {
-          const todayGoal = Math.max(0, (targetHours - validHours + completedToday) / Math.max(1, subjectDaysLeft) + (sub.carryover || 0));
-          dailyTargetReqAccumulator += todayGoal;
-        }
-        dailyTargetCompAccumulator += completedToday;
-      }
-    });
-
-    const calculatedTermPct = targetAccumulator > 0 ? Math.min((validAccumulator / targetAccumulator) * 100, 100) : 0;
-    const calculatedDailyPct = dailyTargetReqAccumulator > 0 ? Math.min((dailyTargetCompAccumulator / dailyTargetReqAccumulator) * 100, 100) : 0;
-
-    return {
-      totalTarget: targetAccumulator,
-      totalValid: validAccumulator,
-      dailyTargetRequired: dailyTargetReqAccumulator,
-      dailyTargetCompleted: dailyTargetCompAccumulator,
-      termPct: calculatedTermPct,
-      dailyPct: calculatedDailyPct
-    };
-  }, [state.subjects, state.term]);
-
-  const selectedSubject = useMemo(() => {
-    return state.subjects.find((subject) => subject.id === selectedSubjectId) ?? null;
-  }, [state.subjects, selectedSubjectId]);
-
-  // Memoized metrics for the selected subject detail sidebar panel
-  const selectedMetrics = useMemo(() => {
-    if (!selectedSubject) return null;
-
-    const todayVal = new Date();
-    const targetHours = parseFloat(selectedSubject.target_hours) || 0;
-    const validHours = parseFloat(selectedSubject.valid_hours) || 0;
-    const todayFocus = selectedSubject.completed_today || 0;
-
-    const subjectDeadline = selectedSubject.deadline || (state.term ? state.term.endDate : null);
-    let todayGoal = 0;
-    let isCompleted = validHours >= targetHours;
-    let isOverdue = false;
-
-    if (subjectDeadline) {
-      const subjectDaysLeft = getDaysLeft(todayVal, subjectDeadline);
-      if (subjectDaysLeft >= 0) {
-        todayGoal = Math.max(0, (targetHours - validHours + todayFocus) / Math.max(1, subjectDaysLeft) + (selectedSubject.carryover || 0));
-      } else {
-        isOverdue = !isCompleted;
-      }
-    }
-
-    return {
-      progressPct: targetHours > 0 ? Math.min((validHours / targetHours) * 100, 100) : 0,
-      todayFocus: formatHoursToMins(todayFocus),
-      todayGoal: formatHoursToMins(todayGoal),
-      totalTime: formatHoursToMins(validHours),
-      pausedToday: formatHoursToMins(selectedSubject.paused_time_today || 0),
-      isCompleted,
-      isOverdue
-    };
-  }, [selectedSubject, state.term]);
-
-  const overviewCopy = isTermEnded
-    ? 'The term has settled. What remains here is what was sustained.'
-    : dailyTargetCompleted > 0
-      ? 'Momentum is already in motion today. Keep it steady with one clean session at a time.'
-      : 'Start your first session to see more insights';
-
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div id="home-screen" className="dashboard-shell animate-[screenFade_0.6s_cubic-bezier(0.25,0.46,0.45,0.94)]">
-      <header className="dashboard-header">
-        <div>
-          <p className="text-tiny text-text-muted uppercase tracking-[0.28em] mb-5">Make every minute count.</p>
-          <h1 className="wordmark">Mintrack</h1>
-        </div>
-
-        <div className="header-pill" role="group" aria-label="Dashboard actions">
-          <button id="theme-toggle-btn" className="header-icon-button theme-toggle-svg-btn" title="Toggle Light/Dark Mode" onClick={toggleTheme} type="button">
-            <svg className="sun-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="5"></circle>
-              <line x1="12" y1="1" x2="12" y2="3"></line>
-              <line x1="12" y1="21" x2="12" y2="23"></line>
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-              <line x1="1" y1="12" x2="3" y2="12"></line>
-              <line x1="21" y1="12" x2="23" y2="12"></line>
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-            </svg>
-            <svg className="moon-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-            </svg>
-          </button>
-          <button id="settings-btn" className="header-icon-button" title="Settings" onClick={() => onOpenModal('settings')} type="button">
-            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3"></circle>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-            </svg>
-          </button>
-        </div>
-      </header>
-
-      <section className="progress-rail glass-surface">
-        <div className="progress-block">
-          <div className="flex items-end justify-between gap-4 mb-6">
-            <div>
-              <p className="text-small text-text-secondary mb-2">Today&apos;s Target</p>
-              <p className="text-medium text-text-primary">{isTermEnded ? 'Closed' : formatHoursToMins(dailyTargetRequired)}</p>
-            </div>
-            <p className="text-small text-accent">{formatHoursToMins(dailyTargetCompleted)} complete</p>
-          </div>
-          <div className="progress-track">
-            <div className="progress-fill" id="daily-progress-fill" style={{ width: `${dailyPct}%` }}></div>
+      {/* ── Coverflow ── */}
+      {state.subjects.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-24 text-center">
+          <p className="text-medium text-text-secondary mb-8">No goals yet.</p>
+          <div className="coverflow-dots" role="tablist" aria-label="Goal navigation">
+            <button
+              className="coverflow-add-btn"
+              onClick={() => onOpenModal('addSubject')}
+              type="button"
+              aria-label="Add Goal"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
           </div>
         </div>
-
-        <div className="progress-divider"></div>
-
-        <div className="progress-block">
-          <div className="flex items-end justify-between gap-4 mb-6">
-            <div>
-              <p className="text-small text-text-secondary mb-2">Term Progress</p>
-              <p className="text-medium text-text-primary">{formatHoursToMins(totalValid)} of {totalTarget}h</p>
-            </div>
-            <p className="text-small text-accent">{termPct.toFixed(0)}%</p>
+      ) : (
+        <div
+          className={`coverflow-container${isAnyEditing ? ' editing-active' : ''}`}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={onPointerUp}
+          onPointerCancel={onPointerUp}
+        >
+          <div className="coverflow-track" ref={trackRef}>
+            {state.subjects.map((sub, idx) => {
+              const { transform, opacity, zIndex } = computeCardStyle(idx, activeIndex, 400);
+              return (
+                <SubjectCard
+                  key={sub.id}
+                  sub={sub}
+                  index={idx}
+                  isActive={idx === activeIndex}
+                  onSelect={onCardSelect}
+                  onOpenModal={onOpenModal}
+                  onSetAccentColor={setSubjectAccentColor}
+                  onLogSession={onLogSession}
+                  onEditSubject={onEditSubject}
+                  onDeleteSubject={onDeleteSubject}
+                  isEditingMode={editingSubjectId === sub.id}
+                  onEditingChange={(editing) => handleEditingChange(sub.id, editing)}
+                  style={{ transform, opacity, zIndex }}
+                />
+              );
+            })}
           </div>
-          <div className="progress-track">
-            <div className="progress-fill" id="term-progress-fill" style={{ width: `${termPct}%` }}></div>
-          </div>
-        </div>
-      </section>
 
-      <main className="dashboard-grid">
-        <section className="dashboard-left">
-          <div className="panel-heading">
-            <div>
-              <p id="term-status" className="text-display">{isTermEnded ? 'Term ended' : `${daysLeft} ${daysLeft === 1 ? 'day' : 'days'} remaining`}</p>
-              <p id="term-dates" className="text-small text-text-secondary term-dates">
-                {state.term && `${formatISODateForDisplay(state.term.startDate)} to ${formatISODateForDisplay(state.term.endDate)}`}
-              </p>
-            </div>
-            <div className="mobile-actions-wrapper">
-              <button id="manual-log-btn" className="secondary-glass-btn" type="button" onClick={() => onOpenModal('manualLog')}>Log Session</button>
-              <button id="add-subject-btn" className="secondary-glass-btn" type="button" onClick={() => onOpenModal('addSubject')}>Add Subject</button>
-            </div>
-          </div>
-
-          <div className="subject-grid">
-            {state.subjects.map((sub) => (
-              <SubjectCard
+          {/* Dot indicators and Add button */}
+          <div
+            className="coverflow-dots"
+            role="tablist"
+            aria-label="Goal navigation"
+            style={{
+              opacity: isAnyEditing ? 0 : 1,
+              transition: 'opacity 0.3s ease',
+              pointerEvents: isAnyEditing ? 'none' : 'auto'
+            }}
+          >
+            {state.subjects.map((sub, idx) => (
+              <button
                 key={sub.id}
-                sub={sub}
-                isSelected={selectedSubjectId === sub.id}
-                onSelect={setSelectedSubjectId}
-                onOpenModal={onOpenModal}
-                termEndDate={state.term?.endDate}
+                role="tab"
+                aria-selected={idx === activeIndex}
+                className={`coverflow-dot${idx === activeIndex ? ' active' : ''}`}
+                style={idx === activeIndex ? { backgroundColor: state.subjects[activeIndex]?.accentColor || '#c97b6e' } : {}}
+                onClick={() => {
+                  stopEntranceAnimation();
+                  setActiveIndex(idx);
+                }}
+                type="button"
+                aria-label={sub.name}
               />
             ))}
+            <button
+              className="coverflow-add-btn"
+              onClick={() => onOpenModal('addSubject')}
+              type="button"
+              aria-label="Add Goal"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </button>
           </div>
-        </section>
-
-        <aside className="dashboard-right glass-surface">
-          {selectedSubject && selectedMetrics ? (
-            <>
-              <section className="detail-section">
-                <div className="flex items-end justify-between gap-4">
-                  <div>
-                    <p className="text-tiny text-text-muted uppercase tracking-[0.22em] mb-5">Selected subject</p>
-                    <h2 className="text-display">{selectedSubject.name}</h2>
-                    {selectedSubject.deadline && (
-                      <p className="text-tiny text-text-muted mt-3 flex items-center gap-3">
-                        Deadline: {formatISODateForDisplay(selectedSubject.deadline)}
-                        {selectedMetrics.isOverdue && <span className="px-3 py-1 text-tiny rounded-full bg-[rgba(184,109,96,0.18)] text-[#b86d60] border border-[rgba(184,109,96,0.3)]">Overdue</span>}
-                        {selectedMetrics.isCompleted && <span className="px-3 py-1 text-tiny rounded-full bg-[rgba(211,163,108,0.18)] text-[#d3a36c] border border-[rgba(211,163,108,0.3)]">Completed</span>}
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </section>
-
-              <div className="section-divider h-px my-8"></div>
-
-              <section className="detail-section stats-grid">
-                <div className="stat-tile">
-                  <span className="stat-label">Today&apos;s Focus</span>
-                  <strong className="stat-value">{selectedMetrics.todayFocus}</strong>
-                </div>
-                <div className="stat-tile">
-                  <span className="stat-label">Today&apos;s Goal</span>
-                  <strong className="stat-value">{selectedMetrics.todayGoal}</strong>
-                </div>
-                <div className="stat-tile">
-                  <span className="stat-label">Total Time Completed</span>
-                  <strong className="stat-value">{selectedMetrics.totalTime}</strong>
-                </div>
-                <div className="stat-tile">
-                  <span className="stat-label">Paused Today</span>
-                  <strong className="stat-value">{selectedMetrics.pausedToday}</strong>
-                </div>
-              </section>
-
-            </>
-          ) : (
-            <section className="detail-empty">
-              <p className="text-tiny text-text-muted uppercase tracking-[0.22em] mb-6">Today&apos;s overview</p>
-              <h2 className="text-display">{formatHoursToMins(dailyTargetCompleted)}</h2>
-              <p className="text-small text-text-secondary mt-3">Focused across the subjects currently in view.</p>
-              <p className="text-small text-text-secondary mt-12 max-w-[34ch]">{overviewCopy}</p>
-            </section>
-          )}
-        </aside>
-      </main>
+        </div>
+      )}
 
       {isTermEnded && (
         <div id="term-ended-banner" className="term-ended-note">

@@ -1,5 +1,6 @@
 import { useStateContext, useUserContext } from '../../contexts/StateContext';
 import { addActionToQueue, processSyncQueue } from '../../lib/syncQueue';
+import { motion } from 'framer-motion';
 
 export default function SettingsModal({ onClose }) {
   const { updateState } = useStateContext();
@@ -7,7 +8,7 @@ export default function SettingsModal({ onClose }) {
 
   const handleClearData = async () => {
     if (!confirm('Are you sure you want to completely erase all data? This cannot be undone!')) return;
-    
+
     // Clear local state immediately
     updateState({ term: null, subjects: [], activeSession: null, last_updated_date: null });
     onClose();
@@ -23,18 +24,59 @@ export default function SettingsModal({ onClose }) {
   };
 
   return (
-    <div id="settings-modal" className="modal-backdrop" onClick={onClose}>
-      <div className="modal-pane iridescent-border" onClick={e => e.stopPropagation()}>
-        <h2 className="text-medium mb-9 text-text-primary">Settings</h2>
+    <motion.div
+      id="settings-modal"
+      className="modal-backdrop"
+      onClick={onClose}
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+    >
+      <motion.div
+        className="modal-pane"
+        onClick={e => e.stopPropagation()}
+        initial={{ scale: 0.82, opacity: 0, y: 12 }}
+        animate={{ scale: 1, opacity: 1, y: 0 }}
+        exit={{ scale: 0.9, opacity: 0, y: 6 }}
+        transition={{ type: 'spring', stiffness: 380, damping: 28, mass: 0.7 }}
+      >
+        <div className="flex justify-between items-center w-full border-b border-text-primary/10 pb-4 mb-6">
+          <h2 className="modal-heading m-0">Settings</h2>
+          <button 
+            type="button" 
+            onClick={onClose}
+            className="w-8 h-8 rounded-full flex items-center justify-center text-text-secondary/40 hover:text-text-primary hover:bg-text-primary/5 transition-colors focus:outline-none"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+        </div>
 
         <div className="flex flex-col gap-6">
-          <button id="clear-data-btn" className="danger-btn w-full text-left" onClick={handleClearData}>
+          <button
+            id="clear-data-btn"
+            className="w-full flex items-center justify-center gap-2 px-8 py-3 rounded-full text-sm font-medium bg-[#4a1c1c] text-[#ff8f8f] hover:bg-[#5a2222] transition-colors border border-[#ff8f8f]/20"
+            onClick={handleClearData}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2-2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
             Clear All Data
           </button>
-          
-          <div className="mt-4 pt-4 border-t border-glass">
-            <button id="logout-btn" className="secondary-glass-btn w-full justify-start px-8" onClick={logout}>
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mr-2">
+
+          <div className="mt-4 pt-4 border-t border-text-primary/5 flex justify-center">
+            <button
+              id="logout-btn"
+              className="px-6 py-2 rounded-full text-xs font-medium border border-transparent text-text-secondary/50 hover:text-text-primary transition-colors flex items-center gap-2"
+              onClick={logout}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
                 <polyline points="16 17 21 12 16 7"></polyline>
                 <line x1="21" y1="12" x2="9" y2="12"></line>
@@ -43,11 +85,7 @@ export default function SettingsModal({ onClose }) {
             </button>
           </div>
         </div>
-
-        <div className="flex justify-end mt-12">
-          <button id="close-settings-btn" className="primary-btn" onClick={onClose}>Done</button>
-        </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   );
 }

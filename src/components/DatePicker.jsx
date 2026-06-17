@@ -218,7 +218,7 @@ export default function DatePicker({ id, value, onChange, placeholder, required 
 
           {/* Clear button for optional fields */}
           {!required && value && (
-            <div className="flex justify-center mt-4 pt-3 border-t border-white/5">
+            <div className="flex justify-center mt-4 pt-3 border-t border-text-primary/5">
               <button
                 type="button"
                 className="text-xs text-text-muted hover:text-text-primary transition-colors select-none"

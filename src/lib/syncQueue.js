@@ -42,7 +42,7 @@ async function processActionQueue() {
   for (const action of actions) {
     let error = null;
     console.log(`[SyncQueue] Syncing action ${action.type} (ID: ${action.id})...`);
-    
+
     try {
       switch (action.type) {
         case 'INSERT_SUBJECT':
@@ -62,6 +62,27 @@ async function processActionQueue() {
         case 'DELETE_ALL_DATA':
           await supabase.from('subjects').delete().eq('user_id', action.userId);
           ({ error } = await supabase.from('profiles').update({ term_start_date: null, term_end_date: null }).eq('id', action.userId));
+          break;
+        case 'INSERT_TODO':
+          ({ error } = await supabase.from('todos').insert({
+            id: action.payload.id,
+            subject_id: action.payload.subject_id,
+            title: action.payload.title,
+            is_completed: action.payload.is_completed,
+            scheduled_for_today: action.payload.scheduled_for_today,
+            created_at: action.payload.created_at
+          }));
+          break;
+        case 'UPDATE_TODO': {
+          const updatePayload = {};
+          if (action.payload.title !== undefined) updatePayload.title = action.payload.title;
+          if (action.payload.is_completed !== undefined) updatePayload.is_completed = action.payload.is_completed;
+          if (action.payload.scheduled_for_today !== undefined) updatePayload.scheduled_for_today = action.payload.scheduled_for_today;
+          ({ error } = await supabase.from('todos').update(updatePayload).eq('id', action.todoId));
+          break;
+        }
+        case 'DELETE_TODO':
+          ({ error } = await supabase.from('todos').delete().eq('id', action.todoId));
           break;
       }
 
@@ -84,7 +105,7 @@ export async function addSessionToQueue(sessionData) {
   const id = crypto.randomUUID();
   const rawDuration = Number(sessionData.duration_minutes);
   const duration = isNaN(rawDuration) ? 0 : Math.round(rawDuration);
-  
+
   console.log('%c📦 [SyncQueue] Queuing session locally:', 'color: #3b82f6; font-weight: bold;', {
     id,
     subject_id: sessionData.subject_id,
@@ -92,10 +113,10 @@ export async function addSessionToQueue(sessionData) {
     is_discarded: sessionData.is_discarded
   });
 
-  await sessionQueue.setItem(id, { 
-    ...sessionData, 
+  await sessionQueue.setItem(id, {
+    ...sessionData,
     duration_minutes: duration,
-    id 
+    id
   });
   return id;
 }
@@ -109,7 +130,7 @@ async function processSessionSyncQueue() {
   for (const key of keys) {
     const session = await sessionQueue.getItem(key);
     if (!session) continue;
-    
+
     const rawDuration = Number(session.duration_minutes);
     const duration = isNaN(rawDuration) ? 0 : Math.round(rawDuration);
 
@@ -172,20 +193,20 @@ export async function processSyncQueue() {
     console.warn('%c⚠️ [SyncQueue] Device is offline. Skipping sync sweep.', 'color: #f59e0b;');
     return;
   }
-  
+
   const actionKeys = await actionQueue.keys();
   const sessionKeys = await sessionQueue.keys();
-  
+
   if (actionKeys.length === 0 && sessionKeys.length === 0) {
     return;
   }
 
   console.log(`%c🔄 [SyncQueue] Starting sync sweep. Pending actions: ${actionKeys.length}, Pending sessions: ${sessionKeys.length}`, 'color: #8b5cf6; font-weight: bold;');
-  
+
   // Always process structural actions (deletes/edits) before logs
   await processActionQueue();
   await processSessionSyncQueue();
-  
+
   console.log('%c✨ [SyncQueue] Sync sweep completed.', 'color: #10b981; font-weight: bold;');
 }
 

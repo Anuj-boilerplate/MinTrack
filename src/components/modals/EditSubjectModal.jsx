@@ -89,8 +89,8 @@ export default function EditSubjectModal({ subject, onClose, onSave, onDelete })
     <div id="edit-subject-modal" className="modal-backdrop" onClick={onClose}>
       <div className="modal-pane iridescent-border" onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-start mb-6">
-          <h2 className="text-medium text-text-primary">Edit Subject</h2>
-          <button type="button" className="icon-btn hover:bg-brand-danger hover:border-brand-danger hover:text-white" id="delete-subject-btn" title="Delete Subject" onClick={() => onDelete(subject.id)}>
+          <h2 className="text-medium text-text-primary">Edit Goal</h2>
+          <button type="button" className="icon-btn hover:bg-brand-danger hover:border-brand-danger hover:text-white" id="delete-subject-btn" title="Delete Goal" onClick={() => onDelete(subject.id)}>
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M3 6h18"></path>
               <path d="M8 6V4h8v2"></path>
@@ -102,7 +102,7 @@ export default function EditSubjectModal({ subject, onClose, onSave, onDelete })
         </div>
         <form id="edit-subject-form" onSubmit={handleSubmit}>
           <div className="mb-9">
-            <label htmlFor="edit-subject-name" className="block text-sm text-text-secondary mb-3">Subject Name</label>
+            <label htmlFor="edit-subject-name" className="block text-sm text-text-secondary mb-3">Goal Name</label>
             <input type="text" id="edit-subject-name" className="input-field" required value={name} onChange={(e) => setName(e.target.value)} />
           </div>
           <div className="mb-9">
@@ -118,7 +118,7 @@ export default function EditSubjectModal({ subject, onClose, onSave, onDelete })
             />
           </div>
           <div className="mb-9">
-            <label htmlFor="edit-subject-deadline" className="block text-sm text-text-secondary mb-3">Custom Deadline (Optional)</label>
+            <label htmlFor="edit-subject-deadline" className="block text-sm text-text-secondary mb-3">Goal Deadline (Optional)</label>
             <DatePicker 
               id="edit-subject-deadline" 
               value={deadline} 
