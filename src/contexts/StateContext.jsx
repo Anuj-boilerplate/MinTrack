@@ -230,7 +230,7 @@ export const StateProvider = ({ children, session }) => {
 
           return {
             ...dbSub,
-            valid_hours: Math.max(dbSub.valid_hours || 0, localSub.valid_hours || 0, calculatedValidHours),
+            valid_hours: mergedSessions.length > 0 ? calculatedValidHours : (dbSub.valid_hours || 0),
             completed_today: localSub.completed_today || 0,
             paused_time_today: localSub.paused_time_today || 0,
             paused_time_total: localSub.paused_time_total || 0,

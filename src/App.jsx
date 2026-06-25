@@ -169,8 +169,6 @@ function AppContent() {
     const hours = durationMins / 60;
     const refDate = dateStr ? new Date(dateStr) : new Date();
     const range = getSessionRangeFromTimes(startStr, endStr, refDate);
-    const sub = state.subjects.find((s) => s.id === subjectId);
-    const newValidHours = (sub?.valid_hours || 0) + hours;
 
     const newSession = {
       id: crypto.randomUUID(),
@@ -182,18 +180,24 @@ function AppContent() {
     };
 
     const isToday = new Date(refDate).toDateString() === new Date().toDateString();
+    let newValidHours = 0;
 
-    updateState(prev => ({
-      ...prev,
-      subjects: prev.subjects.map(s => s.id === subjectId
-        ? {
-          ...s,
-          valid_hours: newValidHours,
-          completed_today: (s.completed_today || 0) + (isToday ? hours : 0),
-          sessions: [newSession, ...(s.sessions || [])]
-        }
-        : s)
-    }));
+    updateState(prev => {
+      const sub = prev.subjects.find((s) => s.id === subjectId);
+      newValidHours = (sub?.valid_hours || 0) + hours;
+
+      return {
+        ...prev,
+        subjects: prev.subjects.map(s => s.id === subjectId
+          ? {
+            ...s,
+            valid_hours: newValidHours,
+            completed_today: (s.completed_today || 0) + (isToday ? hours : 0),
+            sessions: [newSession, ...(s.sessions || [])]
+          }
+          : s)
+      };
+    });
     setActiveModal(null);
 
     await addSessionToQueue({
@@ -206,9 +210,6 @@ function AppContent() {
   };
 
   const handleSaveSession = async (data) => {
-    const sub = state.subjects.find((s) => s.id === data.subjectId);
-    const newValidHours = (sub?.valid_hours || 0) + data.hours;
-
     const newSession = {
       id: crypto.randomUUID(),
       subject_id: data.subjectId,
@@ -218,17 +219,25 @@ function AppContent() {
       is_discarded: false
     };
 
-    updateState(prev => ({
-      ...prev,
-      subjects: prev.subjects.map(s => s.id === data.subjectId
-        ? {
-          ...s,
-          valid_hours: newValidHours,
-          completed_today: (s.completed_today || 0) + data.hours,
-          sessions: [newSession, ...(s.sessions || [])]
-        }
-        : s)
-    }));
+    let newValidHours = 0;
+
+    updateState(prev => {
+      const sub = prev.subjects.find((s) => s.id === data.subjectId);
+      newValidHours = (sub?.valid_hours || 0) + data.hours;
+      
+      return {
+        ...prev,
+        subjects: prev.subjects.map(s => s.id === data.subjectId
+          ? {
+            ...s,
+            valid_hours: newValidHours,
+            completed_today: (s.completed_today || 0) + data.hours,
+            sessions: [newSession, ...(s.sessions || [])]
+          }
+          : s)
+      };
+    });
+    
     setActiveModal(null);
     setSessionReviewData(null);
 
