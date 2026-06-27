@@ -18,7 +18,7 @@ import SettingsModal from './components/modals/SettingsModal';
 import PomodoroConfigModal from './components/modals/PomodoroConfigModal';
 import SessionReviewModal from './components/modals/SessionReviewModal';
 import UpdateModal from './components/modals/UpdateModal';
-import { getSessionRangeFromTimes } from './utils';
+import { getSessionRangeFromTimes, splitSessionAtMidnight } from './utils';
 import { APP_VERSION } from './config';
 import { AnimatePresence, motion } from 'framer-motion';
 import TopBar from './components/TopBar';
@@ -104,7 +104,7 @@ function AppContent() {
 
   const handleAddSubject = async (name, target, deadline) => {
     const newId = crypto.randomUUID();
-    const newSubject = { id: newId, name, target_hours: target, valid_hours: 0, carryover: 0, deadline };
+    const newSubject = { id: newId, name, target_hours: target, valid_hours: 0, deadline };
 
     updateState(prev => ({
       ...prev,
@@ -166,73 +166,49 @@ function AppContent() {
   };
 
   const handleManualLog = async (subjectId, startStr, endStr, durationMins, dateStr) => {
-    const hours = durationMins / 60;
     const refDate = dateStr ? new Date(dateStr) : new Date();
     const range = getSessionRangeFromTimes(startStr, endStr, refDate);
+    
+    const startTimeISO = range?.start.toISOString() || refDate.toISOString();
+    const endTimeISO = range?.end.toISOString() || refDate.toISOString();
 
-    const newSession = {
-      id: crypto.randomUUID(),
-      subject_id: subjectId,
-      start_time: range?.start.toISOString() || refDate.toISOString(),
-      end_time: range?.end.toISOString() || refDate.toISOString(),
-      duration_minutes: durationMins,
-      is_discarded: false
-    };
-
-    const isToday = new Date(refDate).toDateString() === new Date().toDateString();
-    let newValidHours = 0;
+    const newSessions = splitSessionAtMidnight(subjectId, startTimeISO, endTimeISO, durationMins);
 
     updateState(prev => {
-      const sub = prev.subjects.find((s) => s.id === subjectId);
-      newValidHours = (sub?.valid_hours || 0) + hours;
-
       return {
         ...prev,
         subjects: prev.subjects.map(s => s.id === subjectId
           ? {
             ...s,
-            valid_hours: newValidHours,
-            completed_today: (s.completed_today || 0) + (isToday ? hours : 0),
-            sessions: [newSession, ...(s.sessions || [])]
+            sessions: [...newSessions, ...(s.sessions || [])]
           }
           : s)
       };
     });
     setActiveModal(null);
 
-    await addSessionToQueue({
-      ...newSession,
-      new_valid_hours: newValidHours
-    });
+    for (const session of newSessions) {
+      await addSessionToQueue(session);
+    }
 
     // We still call processSyncQueue but the queue handles it
     scheduleSyncQueue();
   };
 
   const handleSaveSession = async (data) => {
-    const newSession = {
-      id: crypto.randomUUID(),
-      subject_id: data.subjectId,
-      start_time: data.startTime,
-      end_time: new Date().toISOString(),
-      duration_minutes: data.hours * 60,
-      is_discarded: false
-    };
+    const startTimeISO = data.startTime;
+    const endTimeISO = new Date().toISOString();
+    const durationMins = data.hours * 60;
 
-    let newValidHours = 0;
+    const newSessions = splitSessionAtMidnight(data.subjectId, startTimeISO, endTimeISO, durationMins);
 
     updateState(prev => {
-      const sub = prev.subjects.find((s) => s.id === data.subjectId);
-      newValidHours = (sub?.valid_hours || 0) + data.hours;
-      
       return {
         ...prev,
         subjects: prev.subjects.map(s => s.id === data.subjectId
           ? {
             ...s,
-            valid_hours: newValidHours,
-            completed_today: (s.completed_today || 0) + data.hours,
-            sessions: [newSession, ...(s.sessions || [])]
+            sessions: [...newSessions, ...(s.sessions || [])]
           }
           : s)
       };
@@ -241,10 +217,9 @@ function AppContent() {
     setActiveModal(null);
     setSessionReviewData(null);
 
-    await addSessionToQueue({
-      ...newSession,
-      new_valid_hours: newValidHours
-    });
+    for (const session of newSessions) {
+      await addSessionToQueue(session);
+    }
 
     scheduleSyncQueue();
   };

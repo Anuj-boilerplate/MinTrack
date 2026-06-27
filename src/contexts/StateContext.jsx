@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { getStartOfDay, getAccentColor } from '../utils';
+import { getStartOfDay, getAccentColor, recalculateSubjectStats } from '../utils';
 import { addActionToQueue, processSyncQueue } from '../lib/syncQueue';
 
 // Debounced sync trigger for todo mutations — batches rapid actions into one flush
@@ -26,9 +26,6 @@ function normalizeSubject(subject) {
   return {
     ...subject,
     target_hours: Number(subject.target_hours ?? 0),
-    valid_hours: Number(subject.valid_hours ?? 0),
-    carryover: Number(subject.carryover ?? 0),
-    completed_today: Number(subject.completed_today ?? 0),
     paused_time_total: Number(subject.paused_time_total ?? 0),
     paused_time_today: Number(subject.paused_time_today ?? 0),
     deadline: subject.deadline ? new Date(subject.deadline).toISOString() : null,
@@ -53,18 +50,18 @@ function normalizeTodo(todo) {
 
 function normalizeState(rawState = {}) {
   const normalizedTerm = rawState.term ? {
-    startDate: rawState.term.startDate?.includes('T') 
-      ? rawState.term.startDate 
+    startDate: rawState.term.startDate?.includes('T')
+      ? rawState.term.startDate
       : new Date(rawState.term.startDate).toISOString(),
-    endDate: rawState.term.endDate?.includes('T') 
-      ? rawState.term.endDate 
+    endDate: rawState.term.endDate?.includes('T')
+      ? rawState.term.endDate
       : new Date(rawState.term.endDate).toISOString()
   } : null;
 
   return {
     term: normalizedTerm,
-    subjects: Array.isArray(rawState.subjects) 
-      ? rawState.subjects.map(normalizeSubject).sort((a, b) => a.name.localeCompare(b.name)) 
+    subjects: Array.isArray(rawState.subjects)
+      ? rawState.subjects.map(normalizeSubject).sort((a, b) => a.name.localeCompare(b.name))
       : [],
     todos: Array.isArray(rawState.todos) ? rawState.todos.map(normalizeTodo) : [],
     activeSession: rawState.activeSession ? {
@@ -83,7 +80,7 @@ export const StateProvider = ({ children, session }) => {
     activeSession: null,
     last_updated_date: null
   });
-  
+
   const [loading, setLoading] = useState(true);
   const initializedUserRef = useRef(null);
 
@@ -177,15 +174,12 @@ export const StateProvider = ({ children, session }) => {
       const localData = localStorage.getItem(STATE_KEY);
       let patchedState = normalizeState(localData ? JSON.parse(localData) : {});
 
-      // Simple Daily Reset: If the last update was before today, reset daily stats
+      // Simple Daily Reset Check for Todos and last_updated_date
       const lastUpdate = getStartOfDay(new Date(patchedState.last_updated_date));
       const today = getStartOfDay();
+      const isNewDay = lastUpdate.getTime() < today.getTime();
 
-      if (lastUpdate.getTime() < today.getTime()) {
-        patchedState.subjects.forEach(sub => {
-          sub.completed_today = 0;
-          sub.paused_time_today = 0;
-        });
+      if (isNewDay) {
         patchedState.todos.forEach(todo => {
           if (todo.scheduled_for_today && !todo.is_completed) {
             todo.scheduled_for_today = false;
@@ -214,24 +208,14 @@ export const StateProvider = ({ children, session }) => {
         patchedState.subjects = dbSubjects.map(dbSub => {
           const localSub = patchedState.subjects.find(ls => ls.id === dbSub.id) || {};
           const subjectSessions = dbSessions ? dbSessions.filter(s => s.subject_id === dbSub.id) : [];
-          
-          const sessionsMap = new Map();
-          subjectSessions.forEach(s => sessionsMap.set(s.id, s));
-          (localSub.sessions || []).forEach(s => {
-            if (!sessionsMap.has(s.id)) {
-              sessionsMap.set(s.id, s);
-            }
-          });
-          const mergedSessions = Array.from(sessionsMap.values());
-          
-          const calculatedValidHours = mergedSessions
-            .filter(s => !s.is_discarded)
-            .reduce((sum, s) => sum + (s.duration_minutes || 0) / 60, 0);
+          const dbSessionIds = new Set(subjectSessions.map(s => s.id));
+
+          // Preserve local-only sessions (queued, not yet synced to DB)
+          const localOnlySessions = (localSub.sessions || []).filter(s => !dbSessionIds.has(s.id));
+          const mergedSessions = [...subjectSessions, ...localOnlySessions];
 
           return {
             ...dbSub,
-            valid_hours: mergedSessions.length > 0 ? calculatedValidHours : (dbSub.valid_hours || 0),
-            completed_today: localSub.completed_today || 0,
             paused_time_today: localSub.paused_time_today || 0,
             paused_time_total: localSub.paused_time_total || 0,
             accent_color: dbSub.accent_color || localSub.accentColor || '#c97b6e',
@@ -244,10 +228,10 @@ export const StateProvider = ({ children, session }) => {
         const toInsert = patchedState.subjects.map(s => {
           // eslint-disable-next-line no-unused-vars
           const { accentColor, sessions, ...rest } = s;
-          return { 
-            ...rest, 
+          return {
+            ...rest,
             accent_color: accentColor || s.accent_color || '#c97b6e',
-            user_id: userId 
+            user_id: userId
           };
         });
         await supabase.from('subjects').upsert(toInsert);
@@ -317,11 +301,6 @@ export const StateProvider = ({ children, session }) => {
         if (!prev.last_updated_date) return prev;
         const lastUpdate = getStartOfDay(new Date(prev.last_updated_date));
         if (lastUpdate.getTime() < today.getTime()) {
-          const nextSubjects = prev.subjects.map(sub => ({
-            ...sub,
-            completed_today: 0,
-            paused_time_today: 0
-          }));
           const nextTodos = prev.todos.map(todo => {
             if (todo.scheduled_for_today && !todo.is_completed) {
               return { ...todo, scheduled_for_today: false };
@@ -330,7 +309,6 @@ export const StateProvider = ({ children, session }) => {
           });
           const nextState = {
             ...prev,
-            subjects: nextSubjects,
             todos: nextTodos,
             last_updated_date: today.toISOString()
           };
@@ -506,10 +484,14 @@ export const StateProvider = ({ children, session }) => {
 
   const mappedSubjects = useMemo(() => {
     const isLight = theme === 'light';
-    return state.subjects.map(s => ({
-      ...s,
-      accentColor: getAccentColor(s.accent_color || s.accentColor || '#c97b6e', isLight)
-    }));
+    return state.subjects.map(s => {
+      const stats = recalculateSubjectStats(s);
+      return {
+        ...s,
+        ...stats,
+        accentColor: getAccentColor(s.accent_color || s.accentColor || '#c97b6e', isLight)
+      };
+    });
   }, [state.subjects, theme]);
 
   const stateContextValue = useMemo(() => ({
