@@ -79,4 +79,103 @@ export function getAccentColor(savedColor, isLight) {
     }
 }
 
+export function splitSessionAtMidnight(subjectId, startTimeISO, endTimeISO, fallbackDurationMins) {
+    const start = new Date(startTimeISO);
+    const end = new Date(endTimeISO);
+
+    // If invalid dates, return a single session with the fallback duration
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return [{
+            id: crypto.randomUUID(),
+            subject_id: subjectId,
+            start_time: startTimeISO,
+            end_time: endTimeISO,
+            duration_minutes: fallbackDurationMins,
+            is_discarded: false
+        }];
+    }
+
+    const startDay = getStartOfDay(start);
+    const endDay = getStartOfDay(end);
+
+    // If it doesn't cross midnight, return single session
+    if (startDay.getTime() === endDay.getTime()) {
+        return [{
+            id: crypto.randomUUID(),
+            subject_id: subjectId,
+            start_time: startTimeISO,
+            end_time: endTimeISO,
+            duration_minutes: Math.max(0, fallbackDurationMins),
+            is_discarded: false
+        }];
+    }
+
+    // It crosses midnight. Let's do a proportional split of the ACTUAL duration
+    const midnight = new Date(endDay); // 00:00:00 of the end day
+    
+    // Calculate raw time elapsed on each side of midnight
+    const rawTotal = (end.getTime() - start.getTime()) / 60000;
+    const raw1 = (midnight.getTime() - start.getTime()) / 60000;
+    
+    // Failsafe against division by zero
+    if (rawTotal <= 0) {
+        return [{
+            id: crypto.randomUUID(),
+            subject_id: subjectId,
+            start_time: startTimeISO,
+            end_time: endTimeISO,
+            duration_minutes: Math.max(0, fallbackDurationMins),
+            is_discarded: false
+        }];
+    }
+
+    // Distribute the true duration (which has breaks subtracted) proportionally
+    const ratio = raw1 / rawTotal;
+    const duration1 = Math.round(fallbackDurationMins * ratio);
+    const duration2 = Math.max(0, fallbackDurationMins - duration1); // Ensure exact total sum
+
+    return [
+        {
+            id: crypto.randomUUID(),
+            subject_id: subjectId,
+            start_time: start.toISOString(),
+            end_time: new Date(midnight.getTime() - 1000).toISOString(),
+            duration_minutes: duration1,
+            is_discarded: false
+        },
+        {
+            id: crypto.randomUUID(),
+            subject_id: subjectId,
+            start_time: midnight.toISOString(),
+            end_time: end.toISOString(),
+            duration_minutes: duration2,
+            is_discarded: false
+        }
+    ];
+}
+
+export function recalculateSubjectStats(subject) {
+    const sessions = subject.sessions || [];
+    const todayStart = getStartOfDay().getTime();
+    
+    let totalMins = 0;
+    let todayMins = 0;
+    
+    for (const s of sessions) {
+        if (!s.is_discarded) {
+            totalMins += (s.duration_minutes || 0);
+            
+            const sessionStart = new Date(s.start_time).getTime();
+            if (sessionStart >= todayStart) {
+                todayMins += (s.duration_minutes || 0);
+            }
+        }
+    }
+    
+    return {
+        valid_hours: totalMins / 60,
+        completed_today: todayMins / 60
+    };
+}
+
 

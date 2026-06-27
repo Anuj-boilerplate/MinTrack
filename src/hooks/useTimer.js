@@ -106,7 +106,7 @@ export function useTimer(state, updateState) {
       const vHours = sub.valid_hours || 0;
 
       const dailyReq = daysLeft >= 0 ? (tHours - vHours) / Math.max(1, daysLeft) : 0;
-      const totalPressure = dailyReq + (sub.carryover || 0);
+      const totalPressure = dailyReq;
 
       const sessionElapsedHours = elapsedMs / (1000 * 60 * 60);
       const currentCompleted = (sub.completed_today || 0) + sessionElapsedHours;
