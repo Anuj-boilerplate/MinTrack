@@ -178,4 +178,16 @@ export function recalculateSubjectStats(subject) {
     };
 }
 
+// Calculate a subject's frozen daily target based on current progress and days remaining.
+// Called at midnight to snapshot a stable value for the day.
+export function calculateDailyTarget(subject, termEndDate) {
+    const endDate = subject.deadline || termEndDate;
+    if (!endDate) return 0;
+    const daysLeft = getDaysLeft(getStartOfDay(), endDate);
+    if (daysLeft <= 0) return 0;
+    const { valid_hours } = recalculateSubjectStats(subject);
+    const hoursRemaining = Math.max(0, (subject.target_hours || 0) - valid_hours);
+    return hoursRemaining / daysLeft;
+}
+
 

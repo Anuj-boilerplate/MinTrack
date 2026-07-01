@@ -1,4 +1,32 @@
+
+
 export const CHANGELOG = [
+  {
+    version: '2.1.1',
+    date: '2026-07-01',
+    changes: [
+      {
+        title: "The Digest",
+        description: "It just sounds cooler, like come on I don't wanna know any 'Analytics', give me the 'Digest' 😋"
+      },
+      {
+        title: "Days Remaining Card",
+        description: "Removed this in the 2.0 update because I just didn't know where to put it in the UI after I was done updating it, Here it is."
+      },
+      {
+        title: "Behaviour-Derived Daily Average",
+        description: "It's my favourite card of all, It gives you a one-look rundown about everything you need to know of your consistency."
+      },
+      {
+        title: "Cumulative Hours Chart",
+        description: "Cool graph that helps you visualize where your progress is at. Solid line is your actual progress, Dashed line is what could've been if you were consistent. Look at the gap to find out how far away you are from your goals"
+      },
+      {
+        title: "Frozen Daily Target Snapshot",
+        description: "The daily required hours shown on each goal card is now frozen at midnight and only recalculates the next day. This prevents the target from shifting downward as you make progress mid-session, giving you a stable goal to work toward all day."
+      }
+    ]
+  },
   {
     version: '2.0',
     date: '2026-06-17',
