@@ -165,8 +165,8 @@ const SubjectCard = memo(function SubjectCard({
   const daysLeft = subDeadlineDate ? getDaysLeft(getStartOfDay(), subDeadlineDate) : 0;
   const tHours = sub.target_hours || 0;
   const vHours = sub.valid_hours || 0;
-  const dailyReq = daysLeft >= 0 ? (tHours - vHours) / Math.max(1, daysLeft) : 0;
-  const totalPressure = dailyReq;
+  // Use the midnight-frozen snapshot; fall back to live calculation only if snapshot isn't set yet
+  const totalPressure = sub.daily_target ?? (daysLeft >= 0 ? (tHours - vHours) / Math.max(1, daysLeft) : 0);
 
   const todayHours = sub.completed_today || 0;
   const todayTarget = totalPressure;

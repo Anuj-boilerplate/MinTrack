@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { getStartOfDay, getAccentColor, recalculateSubjectStats } from '../utils';
+import { getStartOfDay, getAccentColor, recalculateSubjectStats, calculateDailyTarget } from '../utils';
 import { addActionToQueue, processSyncQueue } from '../lib/syncQueue';
 
 // Debounced sync trigger for todo mutations — batches rapid actions into one flush
@@ -224,6 +224,13 @@ export const StateProvider = ({ children, session }) => {
           };
         });
         patchedState.subjects.sort((a, b) => a.name.localeCompare(b.name));
+        // Snapshot daily target: recalculate on new day, or fill in for subjects missing it
+        patchedState.subjects = patchedState.subjects.map(s => ({
+          ...s,
+          daily_target: (isNewDay || s.daily_target == null)
+            ? calculateDailyTarget(s, patchedState.term?.endDate)
+            : s.daily_target
+        }));
       } else if (patchedState.subjects.length > 0) {
         const toInsert = patchedState.subjects.map(s => {
           // eslint-disable-next-line no-unused-vars
@@ -307,8 +314,14 @@ export const StateProvider = ({ children, session }) => {
             }
             return todo;
           });
+          // Snapshot daily targets at midnight for all subjects
+          const nextSubjects = prev.subjects.map(s => ({
+            ...s,
+            daily_target: calculateDailyTarget(s, prev.term?.endDate)
+          }));
           const nextState = {
             ...prev,
+            subjects: nextSubjects,
             todos: nextTodos,
             last_updated_date: today.toISOString()
           };

@@ -10,7 +10,7 @@ import HomeScreen from './components/screens/HomeScreen';
 import TimerScreen from './components/screens/TimerScreen';
 import Navbar from './components/Navbar';
 import TodoScreen from './components/screens/TodoScreen';
-import AnalyticsScreen from './components/screens/AnalyticsScreen';
+import DigestScreen from './components/screens/DigestScreen';
 
 import AddSubjectModal from './components/modals/AddSubjectModal';
 
@@ -18,7 +18,7 @@ import SettingsModal from './components/modals/SettingsModal';
 import PomodoroConfigModal from './components/modals/PomodoroConfigModal';
 import SessionReviewModal from './components/modals/SessionReviewModal';
 import UpdateModal from './components/modals/UpdateModal';
-import { getSessionRangeFromTimes, splitSessionAtMidnight } from './utils';
+import { getSessionRangeFromTimes, splitSessionAtMidnight, calculateDailyTarget } from './utils';
 import { APP_VERSION } from './config';
 import { AnimatePresence, motion } from 'framer-motion';
 import TopBar from './components/TopBar';
@@ -104,7 +104,18 @@ function AppContent() {
 
   const handleAddSubject = async (name, target, deadline) => {
     const newId = crypto.randomUUID();
-    const newSubject = { id: newId, name, target_hours: target, valid_hours: 0, deadline };
+    const newSubject = {
+      id: newId,
+      name,
+      target_hours: target,
+      valid_hours: 0,
+      deadline,
+      sessions: [],
+      daily_target: calculateDailyTarget(
+        { target_hours: target, valid_hours: 0, deadline, sessions: [] },
+        state.term?.endDate
+      )
+    };
 
     updateState(prev => ({
       ...prev,
@@ -264,7 +275,7 @@ function AppContent() {
                     />
                   )}
                   {activeTab === 'todo' && <TodoScreen />}
-                  {activeTab === 'analytics' && <AnalyticsScreen />}
+                  {activeTab === 'analytics' && <DigestScreen />}
                 </motion.div>
                 <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
               </div>

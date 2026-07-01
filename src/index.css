@@ -1689,4 +1689,196 @@
   }
 
   /* Remove old redesign classes */
+
+  /* ── Digest Screen ────────────────────────────────────────────────────────── */
+
+  #digest-screen {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    padding: 1.5rem 1.25rem 7rem;
+  }
+
+  .digest-header {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .digest-header__title {
+    font-family: var(--font-serif, Georgia, serif);
+    font-size: clamp(1.75rem, 5vw, 2.25rem);
+    font-weight: 400;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+    line-height: 1.1;
+  }
+
+  .digest-header__date {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .digest-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+
+  /* ── Digest Card ── */
+  .digest-card {
+    background: var(--card-bg);
+    border: 1px solid var(--border-glass);
+    border-radius: 14px;
+    padding: 1.125rem 1.125rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.3rem;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* Chart card spans the full grid width */
+  .digest-card--chart {
+    grid-column: 1 / -1;
+    gap: 0.5rem;
+  }
+
+  .digest-card__label {
+    font-family: var(--font-sans, system-ui, sans-serif);
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .digest-card__number {
+    font-family: var(--font-serif, Georgia, serif);
+    font-size: clamp(2.25rem, 9vw, 3.5rem);
+    font-weight: 300;
+    color: var(--text-primary);
+    line-height: 1;
+    letter-spacing: -0.02em;
+    display: flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    margin-top: 0.125rem;
+    flex-wrap: wrap;
+  }
+
+  .digest-card__number-unit {
+    font-size: clamp(1rem, 3vw, 1.25rem);
+    font-weight: 400;
+    color: var(--text-muted);
+    letter-spacing: 0.02em;
+  }
+
+  .digest-card__meta {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.6875rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+    margin-top: 0.125rem;
+  }
+
+  .digest-card__bar-track {
+    height: 2px;
+    width: 100%;
+    background: var(--progress-bg);
+    border-radius: 999px;
+    overflow: hidden;
+    margin-top: 1rem;
+  }
+
+  .digest-card__bar-fill {
+    height: 100%;
+    background: var(--text-primary);
+    opacity: 0.5;
+    border-radius: 999px;
+    transition: width 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  .digest-card__bar-labels {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono, monospace);
+    font-size: 0.5625rem;
+    color: var(--text-muted);
+    letter-spacing: 0.06em;
+    margin-top: 0.375rem;
+    opacity: 0.6;
+  }
+
+  .digest-card__verdict {
+    font-family: var(--font-sans, system-ui, sans-serif);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.75rem;
+    line-height: 1.5;
+    font-style: italic;
+    opacity: 0.75;
+  }
+
+  .digest-card--empty {
+    opacity: 0.6;
+  }
+
+  .digest-card__empty-message {
+    font-family: var(--font-sans, system-ui, sans-serif);
+    font-size: 0.8125rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin-top: 0.5rem;
+  }
+
+  .digest-card__empty-message span {
+    font-size: 0.6875rem;
+    opacity: 0.7;
+  }
+
+  /* ── Chart Card ── */
+  .digest-card--chart {
+    gap: 0.5rem;
+  }
+
+  .digest-card__chart-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .digest-card__chart-option {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.5625rem;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    opacity: 0.5;
+  }
+
+  .digest-chart {
+    display: block;
+    width: 100%;
+    color: var(--text-primary);
+    margin-top: 0.5rem;
+  }
+
+  .digest-chart-legend {
+    display: flex;
+    gap: 1rem;
+    margin-top: 0.25rem;
+  }
+
+  .digest-chart-legend__actual,
+  .digest-chart-legend__ideal {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.5625rem;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    opacity: 0.6;
+  }
 }
