@@ -2,9 +2,10 @@ import { useMemo } from 'react';
 import { useStateContext } from '../../contexts/StateContext';
 import { getDaysLeft, getStartOfDay } from '../../utils';
 
+
 // ── SVG chart constants ────────────────────────────────────────────────────
-const CW = 320, CH = 100;
-const PAD = { t: 8, r: 6, b: 6, l: 6 };
+const CW = 320, CH = 130;
+const PAD = { t: 8, r: 12, b: 20, l: 32 };
 const IW = CW - PAD.l - PAD.r;
 const IH = CH - PAD.t - PAD.b;
 
@@ -67,35 +68,73 @@ function useDayBuckets(subjects, term) {
 function ChartA({ data }) {
   const { days, totalTarget, totalTermDays, daysElapsed } = data;
 
-  const n = daysElapsed - 1 || 1;
+  // X axis should scale to the entire term, not just the days elapsed.
+  const n = totalTermDays - 1 || 1;
 
-  const xS = i  => PAD.l + (i / n) * IW;
-  const yS = v  => PAD.t + IH - Math.min(1, v / totalTarget) * IH;
+  const xS = i => PAD.l + (i / n) * IW;
+  const yS = v => PAD.t + IH - Math.min(1, v / totalTarget) * IH;
 
-  const actualPts = days.map(d => ({
-    x: xS(d.i),
-    y: yS(d.cumulative)
+  const actualPts = days.map(d => ({ x: xS(d.i), y: yS(d.cumulative) }));
+  
+  // The ideal line stretches from day 0 to the end of the term
+  const idealPts  = [
+    { x: xS(0), y: yS(0) },
+    { x: xS(totalTermDays - 1), y: yS(totalTarget) }
+  ];
+
+  // Y axis ticks: 0, 25%, 50%, 75%, 100% of totalTarget
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(f => ({
+    value: Math.round(f * totalTarget),
+    y: yS(f * totalTarget)
   }));
 
-  const idealPts = days.map(d => ({
-    x: xS(d.i),
-    y: yS((d.i / totalTermDays) * totalTarget)
-  }));
+  // X axis ticks: evenly spaced day numbers, max 5, stretching across the entire term
+  const xTickCount = Math.min(5, totalTermDays);
+  const xTicks = Array.from({ length: xTickCount }, (_, k) => {
+    const idx = Math.round((k / (xTickCount - 1 || 1)) * (totalTermDays - 1));
+    return { label: `Day ${idx + 1}`, x: xS(idx) };
+  });
 
   return (
-    <svg
-      viewBox={`0 0 ${CW} ${CH}`}
-      width="100%"
-      className="digest-chart"
-    >
-      {/* Subtle grid */}
-      {[0.25, 0.5, 0.75, 1].map(f => (
-        <line
-          key={f}
-          x1={PAD.l} x2={CW - PAD.r}
-          y1={PAD.t + IH * (1 - f)} y2={PAD.t + IH * (1 - f)}
-          stroke="currentColor" strokeOpacity="0.07" strokeWidth="1"
-        />
+    <svg viewBox={`0 0 ${CW} ${CH}`} width="100%" className="digest-chart">
+
+      {/* Y grid lines + labels */}
+      {yTicks.map(tick => (
+        <g key={tick.value}>
+          <line
+            x1={PAD.l} x2={CW - PAD.r}
+            y1={tick.y} y2={tick.y}
+            stroke="currentColor" strokeOpacity="0.07" strokeWidth="1"
+          />
+          <text
+            x={PAD.l - 4}
+            y={tick.y}
+            textAnchor="end"
+            dominantBaseline="middle"
+            fontSize="3"
+            fontFamily="var(--font-mono, monospace)"
+            fill="currentColor"
+            opacity="0.35"
+          >
+            {tick.value}h
+          </text>
+        </g>
+      ))}
+
+      {/* X axis tick labels */}
+      {xTicks.map(tick => (
+        <text
+          key={tick.label}
+          x={tick.x}
+          y={CH - 5}
+          textAnchor="middle"
+          fontSize="3"
+          fontFamily="var(--font-mono, monospace)"
+          fill="currentColor"
+          opacity="0.35"
+        >
+          {tick.label}
+        </text>
       ))}
 
       {/* Ideal line — dashed, muted */}
@@ -240,6 +279,145 @@ function DailyAverageCard({ subjects, term }) {
   );
 }
 
+// ── Today's Progress Card ─────────────────────────────────────────────────
+function TodayProgressCard({ subjects }) {
+  const stats = useMemo(() => {
+    const today     = getStartOfDay();
+    const todayEnd  = today.getTime() + 86400000;
+
+    // Per-subject: daily_target and hours studied today
+    const perSubject = subjects
+      .filter(s => (s.daily_target || 0) > 0 || (s.sessions || []).length > 0)
+      .map(s => {
+        const todayHours = (s.sessions || [])
+          .filter(sess => !sess.is_discarded)
+          .filter(sess => {
+            const t = new Date(sess.start_time).getTime();
+            return t >= today.getTime() && t < todayEnd;
+          })
+          .reduce((sum, sess) => sum + (sess.duration_minutes || 0) / 60, 0);
+
+        return {
+          id:          s.id,
+          name:        s.name,
+          color:       s.accentColor || s.accent_color || 'var(--text-muted)',
+          target:      s.daily_target || 0,
+          studiedToday: todayHours,
+        };
+      })
+      .filter(s => s.target > 0);
+
+    const totalTarget  = perSubject.reduce((sum, s) => sum + s.target, 0);
+    const totalStudied = perSubject.reduce((sum, s) => sum + s.studiedToday, 0);
+
+    return { perSubject, totalTarget, totalStudied };
+  }, [subjects]);
+
+  const { perSubject, totalTarget, totalStudied } = stats;
+
+  if (perSubject.length === 0) {
+    return (
+      <div className="digest-card digest-card--wide digest-card--empty">
+        <span className="digest-card__label">Today&rsquo;s goal</span>
+        <div className="digest-card__empty-message">
+          No daily targets set yet.
+          <br />
+          <span>Set a target hours goal on each subject to see today&rsquo;s combined goal here.</span>
+        </div>
+      </div>
+    );
+  }
+
+  const overallPct   = Math.min(1, totalTarget > 0 ? totalStudied / totalTarget : 0);
+  const remaining    = Math.max(0, totalTarget - totalStudied);
+  const doneHours    = Math.floor(totalStudied);
+  const doneMins     = Math.round((totalStudied - doneHours) * 60);
+  const targetHours  = Math.floor(totalTarget);
+  const targetMins   = Math.round((totalTarget - targetHours) * 60);
+  const remHours     = Math.floor(remaining);
+  const remMins      = Math.round((remaining - remHours) * 60);
+
+  const verdict =
+    overallPct >= 1    ? "All goals met for today. Well done."
+    : overallPct >= 0.75 ? "Almost there — one more push."
+    : overallPct >= 0.5  ? "Halfway through. Keep it going."
+    : overallPct >= 0.25 ? "Off to a start. More to do."
+    :                      "Day's barely begun. Time to open the books.";
+
+  // Build segmented bar: each subject fills proportional to (their target / totalTarget)
+  // within that segment, their studied portion is opaque; the rest is muted.
+  return (
+    <div className="digest-card digest-card--wide">
+      <div className="digest-today__header">
+        <span className="digest-card__label">Today&rsquo;s goal</span>
+        <span className="digest-today__tally">
+          <span className="digest-today__tally-done">
+            {doneHours > 0 && <>{doneHours}<span className="digest-today__tally-unit">h</span></>}
+            {doneMins  > 0 && <>{doneHours > 0 ? '\u00a0' : ''}{doneMins}<span className="digest-today__tally-unit">m</span></>}
+            {totalStudied === 0 && <span style={{ opacity: 0.4 }}>0<span className="digest-today__tally-unit">h</span></span>}
+          </span>
+          <span className="digest-today__tally-sep">/</span>
+          <span className="digest-today__tally-total">
+            {targetHours > 0 && <>{targetHours}<span className="digest-today__tally-unit">h</span></>}
+            {targetMins  > 0 && <>{targetHours > 0 ? '\u00a0' : ''}{targetMins}<span className="digest-today__tally-unit">m</span></>}
+          </span>
+        </span>
+      </div>
+
+      {/* Segmented progress bar */}
+      <div className="digest-today__bar-track" role="meter" aria-valuenow={Math.round(overallPct * 100)} aria-valuemin={0} aria-valuemax={100}>
+        {perSubject.map((s, i) => {
+          const segWidth  = totalTarget > 0 ? (s.target / totalTarget) * 100 : 0;
+          const fillPct   = s.target > 0 ? Math.min(1, s.studiedToday / s.target) * 100 : 0;
+          const isLast    = i === perSubject.length - 1;
+          return (
+            <div
+              key={s.id}
+              className="digest-today__bar-seg"
+              style={{
+                width: `${segWidth}%`,
+                borderRight: isLast ? 'none' : '2px solid var(--bg-main)',
+              }}
+            >
+              <div
+                className="digest-today__bar-seg-fill"
+                style={{ width: `${fillPct}%`, background: s.color }}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Subject legend */}
+      <div className="digest-today__legend">
+        {perSubject.map(s => (
+          <div key={s.id} className="digest-today__legend-item">
+            <span className="digest-today__legend-dot" style={{ background: s.color }} />
+            <span className="digest-today__legend-name">{s.name}</span>
+            <span className="digest-today__legend-val">
+              {s.target > 0
+                ? `${Math.floor(s.studiedToday)}h ${Math.round((s.studiedToday % 1) * 60)}m / ${Math.floor(s.target)}h ${Math.round((s.target % 1) * 60)}m`
+                : '—'
+              }
+            </span>
+          </div>
+        ))}
+      </div>
+
+      <div className="digest-today__footer">
+        {remaining > 0 && (
+          <span className="digest-today__remaining">
+            {remHours > 0 && <>{remHours}<span style={{ fontSize: '0.7em', marginLeft: '1px' }}>h</span></>}
+            {remMins  > 0 && <>{remHours > 0 ? '\u00a0' : ''}{remMins}<span style={{ fontSize: '0.7em', marginLeft: '1px' }}>m</span></>}
+            {' '}remaining
+          </span>
+        )}
+        <span className="digest-card__verdict" style={{ marginTop: 0 }}>{verdict}</span>
+      </div>
+    </div>
+  );
+}
+
 // ── Digest Screen ──────────────────────────────────────────────────────────
 export default function DigestScreen() {
   const { state } = useStateContext();
@@ -261,6 +439,8 @@ export default function DigestScreen() {
       </div>
 
       <div className="digest-grid">
+        <TodayProgressCard subjects={state.subjects} />
+
         <DaysRemainingCard term={state.term} />
         <DailyAverageCard subjects={state.subjects} term={state.term} />
 
