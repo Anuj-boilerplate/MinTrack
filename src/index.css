@@ -1741,10 +1741,141 @@
     -webkit-backdrop-filter: blur(12px);
   }
 
-  /* Chart card spans the full grid width */
+  /* Full-width cards */
+  .digest-card--wide,
   .digest-card--chart {
     grid-column: 1 / -1;
+  }
+
+  .digest-card--chart {
     gap: 0.5rem;
+  }
+
+  /* ── Today's Progress Card ── */
+  .digest-today__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 0.125rem;
+  }
+
+  .digest-today__tally {
+    display: flex;
+    align-items: baseline;
+    gap: 0.3rem;
+    font-family: var(--font-serif, Georgia, serif);
+    font-size: clamp(1.1rem, 3.5vw, 1.5rem);
+    font-weight: 300;
+    color: var(--text-primary);
+    letter-spacing: -0.01em;
+  }
+
+  .digest-today__tally-done {
+    color: var(--text-primary);
+  }
+
+  .digest-today__tally-sep {
+    color: var(--text-muted);
+    font-weight: 300;
+    margin: 0 0.1rem;
+    opacity: 0.45;
+  }
+
+  .digest-today__tally-total {
+    color: var(--text-muted);
+    opacity: 0.65;
+  }
+
+  .digest-today__tally-unit {
+    font-size: 0.65em;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    margin-left: 1px;
+  }
+
+  /* Segmented progress bar */
+  .digest-today__bar-track {
+    display: flex;
+    width: 100%;
+    height: 6px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: var(--progress-bg);
+    margin: 0.875rem 0 0;
+  }
+
+  .digest-today__bar-seg {
+    height: 100%;
+    position: relative;
+    background: var(--progress-bg);
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .digest-today__bar-seg-fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    height: 100%;
+    opacity: 0.75;
+    transition: width 0.7s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  }
+
+  /* Subject legend */
+  .digest-today__legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem 1.25rem;
+    margin-top: 0.875rem;
+  }
+
+  .digest-today__legend-item {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+
+  .digest-today__legend-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    opacity: 0.8;
+  }
+
+  .digest-today__legend-name {
+    font-family: var(--font-sans, system-ui, sans-serif);
+    font-size: 0.6875rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .digest-today__legend-val {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.625rem;
+    color: var(--text-muted);
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+
+  /* Footer row: remaining + verdict */
+  .digest-today__footer {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .digest-today__remaining {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.6875rem;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    flex-shrink: 0;
   }
 
   .digest-card__label {
@@ -1880,5 +2011,13 @@
     letter-spacing: 0.06em;
     color: var(--text-muted);
     opacity: 0.6;
+  }
+
+  .digest-chart__axis-label {
+    font-family: var(--font-mono, monospace);
+    font-size: 8px;
+    fill: currentColor;
+    opacity: 0.35;
+    letter-spacing: 0.02em;
   }
 }
