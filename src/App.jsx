@@ -18,7 +18,7 @@ import SettingsModal from './components/modals/SettingsModal';
 import PomodoroConfigModal from './components/modals/PomodoroConfigModal';
 import SessionReviewModal from './components/modals/SessionReviewModal';
 import UpdateModal from './components/modals/UpdateModal';
-import { getSessionRangeFromTimes, splitSessionAtMidnight, calculateDailyTarget } from './utils';
+import { getSessionRangeFromTimes, splitSessionAtMidnight, calculateDailyTarget, parseDateAsLocal } from './utils';
 import { APP_VERSION } from './config';
 import { AnimatePresence, motion } from 'framer-motion';
 import TopBar from './components/TopBar';
@@ -177,7 +177,7 @@ function AppContent() {
   };
 
   const handleManualLog = async (subjectId, startStr, endStr, durationMins, dateStr) => {
-    const refDate = dateStr ? new Date(dateStr) : new Date();
+    const refDate = dateStr ? parseDateAsLocal(dateStr) : new Date();
     const range = getSessionRangeFromTimes(startStr, endStr, refDate);
     
     const startTimeISO = range?.start.toISOString() || refDate.toISOString();

@@ -232,11 +232,13 @@ function DailyAverageCard({ subjects, term }) {
     const totalHours  = allSessions.reduce((sum, s) => sum + (s.duration_minutes || 0), 0) / 60;
     const termStart   = getStartOfDay(new Date(term.startDate));
     const today       = getStartOfDay();
-    const daysElapsed = Math.max(1, Math.ceil((today - termStart) / (1000 * 60 * 60 * 24)));
-    const average     = totalHours / daysElapsed;
     const studyDays   = new Set(
       allSessions.map(s => getStartOfDay(new Date(s.start_time)).toDateString())
     ).size;
+    // Clamp daysElapsed so it's never less than studyDays — prevents "3 active out of 2 days"
+    const rawDaysElapsed  = Math.max(1, Math.ceil((today - termStart) / (1000 * 60 * 60 * 24)));
+    const daysElapsed     = Math.max(rawDaysElapsed, studyDays);
+    const average         = totalHours / daysElapsed;
 
     return { average, daysElapsed, studyDays };
   }, [subjects, term]);
@@ -257,7 +259,7 @@ function DailyAverageCard({ subjects, term }) {
   const { average, daysElapsed, studyDays } = stats;
   const avgHours = Math.floor(average);
   const avgMins  = Math.round((average - avgHours) * 60);
-  const idleDays = daysElapsed - studyDays;
+  const idleDays = Math.max(0, daysElapsed - studyDays);
 
   return (
     <div className="digest-card">

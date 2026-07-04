@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { animate } from 'framer-motion';
 import { useStateContext } from '../../contexts/StateContext';
-import { getDaysLeft, hexToRgba, getSessionRangeFromTimes, formatHoursToMins, getAccentColor, getStartOfDay } from '../../utils';
+import { getDaysLeft, hexToRgba, getSessionRangeFromTimes, formatHoursToMins, getAccentColor, getStartOfDay, toLocalDateString } from '../../utils';
 
 // Card gap (px) between card centers will be measured dynamically from the DOM at runtime.
 
@@ -30,7 +30,7 @@ const SubjectCard = memo(function SubjectCard({
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [isStartHovered, setIsStartHovered] = useState(false);
-  const [logDate, setLogDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [logDate, setLogDate] = useState(() => toLocalDateString());
   const [logHours, setLogHours] = useState('');
   const [logMinutes, setLogMinutes] = useState('');
 
@@ -88,7 +88,7 @@ const SubjectCard = memo(function SubjectCard({
     setIsLogOpen(false);
     setLogHours('');
     setLogMinutes('');
-    setLogDate(new Date().toISOString().split('T')[0]);
+    setLogDate(toLocalDateString());
   }, [logHours, logMinutes, logDate, onLogSession, sub.id]);
 
   // ── Edit submit / cancel ──────────────────────────────────────────────────

@@ -1,4 +1,22 @@
 // Date Utilities
+
+// Returns the local date as a YYYY-MM-DD string, safe for any timezone.
+// Never use new Date().toISOString().split('T')[0] — that gives UTC date, not local.
+export function toLocalDateString(date = new Date()) {
+    const d = new Date(date);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+// Parses a YYYY-MM-DD date string as local midnight, not UTC midnight.
+// new Date('2026-07-04') parses as UTC — this avoids that.
+export function parseDateAsLocal(dateStr) {
+    if (!dateStr) return new Date();
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d);
+}
 export function getStartOfDay(date = new Date()) {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
