@@ -102,7 +102,7 @@ async function processActionQueue() {
  * SESSIONS QUEUE (High frequency: focus logs)
  */
 export async function addSessionToQueue(sessionData) {
-  const id = crypto.randomUUID();
+  const id = sessionData.id || crypto.randomUUID();
   const rawDuration = Number(sessionData.duration_minutes);
   const duration = isNaN(rawDuration) ? 0 : Math.round(rawDuration);
 
@@ -146,17 +146,6 @@ async function processSessionSyncQueue() {
     }, { onConflict: 'id' });
 
     if (!error) {
-      if (!session.is_discarded && session.new_valid_hours !== undefined) {
-        const { error: subjectUpdateError } = await supabase.from('subjects')
-          .update({ valid_hours: session.new_valid_hours })
-          .eq('id', session.subject_id);
-
-        if (subjectUpdateError) {
-          console.error(`%c❌ [SyncQueue] Failed to update subject valid_hours for session ${session.id}:`, 'color: #ef4444;', subjectUpdateError);
-        } else {
-          console.log(`[SyncQueue] Updated subject ${session.subject_id} valid_hours to ${session.new_valid_hours}`);
-        }
-      }
       console.log(`%c✅ [SyncQueue] Successfully synced session (ID: ${session.id})`, 'color: #10b981;');
       await sessionQueue.removeItem(key);
     } else {

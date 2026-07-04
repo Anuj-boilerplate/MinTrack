@@ -1,4 +1,22 @@
 // Date Utilities
+
+// Returns the local date as a YYYY-MM-DD string, safe for any timezone.
+// Never use new Date().toISOString().split('T')[0] — that gives UTC date, not local.
+export function toLocalDateString(date = new Date()) {
+    const d = new Date(date);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+// Parses a YYYY-MM-DD date string as local midnight, not UTC midnight.
+// new Date('2026-07-04') parses as UTC — this avoids that.
+export function parseDateAsLocal(dateStr) {
+    if (!dateStr) return new Date();
+    const [y, m, d] = dateStr.split('-').map(Number);
+    return new Date(y, m - 1, d);
+}
 export function getStartOfDay(date = new Date()) {
     const d = new Date(date);
     d.setHours(0, 0, 0, 0);
@@ -77,6 +95,117 @@ export function getAccentColor(savedColor, isLight) {
         case '#b8960c': return '#a27e05'; // Antique Gold -> Saturated Antique Gold
         default: return color;
     }
+}
+
+export function splitSessionAtMidnight(subjectId, startTimeISO, endTimeISO, fallbackDurationMins) {
+    const start = new Date(startTimeISO);
+    const end = new Date(endTimeISO);
+
+    // If invalid dates, return a single session with the fallback duration
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return [{
+            id: crypto.randomUUID(),
+            subject_id: subjectId,
+            start_time: startTimeISO,
+            end_time: endTimeISO,
+            duration_minutes: fallbackDurationMins,
+            is_discarded: false
+        }];
+    }
+
+    const startDay = getStartOfDay(start);
+    const endDay = getStartOfDay(end);
+
+    // If it doesn't cross midnight, return single session
+    if (startDay.getTime() === endDay.getTime()) {
+        return [{
+            id: crypto.randomUUID(),
+            subject_id: subjectId,
+            start_time: startTimeISO,
+            end_time: endTimeISO,
+            duration_minutes: Math.max(0, fallbackDurationMins),
+            is_discarded: false
+        }];
+    }
+
+    // It crosses midnight. Let's do a proportional split of the ACTUAL duration
+    const midnight = new Date(endDay); // 00:00:00 of the end day
+    
+    // Calculate raw time elapsed on each side of midnight
+    const rawTotal = (end.getTime() - start.getTime()) / 60000;
+    const raw1 = (midnight.getTime() - start.getTime()) / 60000;
+    
+    // Failsafe against division by zero
+    if (rawTotal <= 0) {
+        return [{
+            id: crypto.randomUUID(),
+            subject_id: subjectId,
+            start_time: startTimeISO,
+            end_time: endTimeISO,
+            duration_minutes: Math.max(0, fallbackDurationMins),
+            is_discarded: false
+        }];
+    }
+
+    // Distribute the true duration (which has breaks subtracted) proportionally
+    const ratio = raw1 / rawTotal;
+    const duration1 = Math.round(fallbackDurationMins * ratio);
+    const duration2 = Math.max(0, fallbackDurationMins - duration1); // Ensure exact total sum
+
+    return [
+        {
+            id: crypto.randomUUID(),
+            subject_id: subjectId,
+            start_time: start.toISOString(),
+            end_time: new Date(midnight.getTime() - 1000).toISOString(),
+            duration_minutes: duration1,
+            is_discarded: false
+        },
+        {
+            id: crypto.randomUUID(),
+            subject_id: subjectId,
+            start_time: midnight.toISOString(),
+            end_time: end.toISOString(),
+            duration_minutes: duration2,
+            is_discarded: false
+        }
+    ];
+}
+
+export function recalculateSubjectStats(subject) {
+    const sessions = subject.sessions || [];
+    const todayStart = getStartOfDay().getTime();
+    
+    let totalMins = 0;
+    let todayMins = 0;
+    
+    for (const s of sessions) {
+        if (!s.is_discarded) {
+            totalMins += (s.duration_minutes || 0);
+            
+            const sessionStart = new Date(s.start_time).getTime();
+            if (sessionStart >= todayStart) {
+                todayMins += (s.duration_minutes || 0);
+            }
+        }
+    }
+    
+    return {
+        valid_hours: totalMins / 60,
+        completed_today: todayMins / 60
+    };
+}
+
+// Calculate a subject's frozen daily target based on current progress and days remaining.
+// Called at midnight to snapshot a stable value for the day.
+export function calculateDailyTarget(subject, termEndDate) {
+    const endDate = subject.deadline || termEndDate;
+    if (!endDate) return 0;
+    const daysLeft = getDaysLeft(getStartOfDay(), endDate);
+    if (daysLeft <= 0) return 0;
+    const { valid_hours } = recalculateSubjectStats(subject);
+    const hoursRemaining = Math.max(0, (subject.target_hours || 0) - valid_hours);
+    return hoursRemaining / daysLeft;
 }
 
 

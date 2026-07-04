@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { animate } from 'framer-motion';
 import { useStateContext } from '../../contexts/StateContext';
-import { getDaysLeft, hexToRgba, getSessionRangeFromTimes, formatHoursToMins, getAccentColor, getStartOfDay } from '../../utils';
+import { getDaysLeft, hexToRgba, getSessionRangeFromTimes, formatHoursToMins, getAccentColor, getStartOfDay, toLocalDateString } from '../../utils';
 
 // Card gap (px) between card centers will be measured dynamically from the DOM at runtime.
 
@@ -30,9 +30,9 @@ const SubjectCard = memo(function SubjectCard({
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [isStartHovered, setIsStartHovered] = useState(false);
-  const [logDate, setLogDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [logStartTime, setLogStartTime] = useState('');
-  const [logEndTime, setLogEndTime] = useState('');
+  const [logDate, setLogDate] = useState(() => toLocalDateString());
+  const [logHours, setLogHours] = useState('');
+  const [logMinutes, setLogMinutes] = useState('');
 
   // Edit-in-place state
   const [editName, setEditName] = useState(sub.name);
@@ -45,10 +45,9 @@ const SubjectCard = memo(function SubjectCard({
   const logFormRef = useRef(null);
 
   // Calculate dynamic duration for log form display
-  const sessionRange = (logStartTime && logEndTime)
-    ? getSessionRangeFromTimes(logStartTime, logEndTime, logDate ? new Date(logDate) : new Date())
-    : null;
-  const durationMins = sessionRange ? sessionRange.durationMinutes : 0;
+  const parsedH = parseInt(logHours) || 0;
+  const parsedM = parseInt(logMinutes) || 0;
+  const durationMins = (parsedH * 60) + parsedM;
 
   // ── Sync edit fields when subject data changes (e.g. after a save) ────────
   useEffect(() => {
@@ -73,11 +72,10 @@ const SubjectCard = memo(function SubjectCard({
 
   const handleLogSubmit = useCallback((e) => {
     e.stopPropagation();
-    if (!logStartTime || !logEndTime) return;
-
-    const refDate = logDate ? new Date(logDate) : new Date();
-    const range = getSessionRangeFromTimes(logStartTime, logEndTime, refDate);
-    const diffMins = range?.durationMinutes ?? 0;
+    
+    const parsedH = parseInt(logHours) || 0;
+    const parsedM = parseInt(logMinutes) || 0;
+    const diffMins = (parsedH * 60) + parsedM;
 
     if (diffMins <= 0) {
       alert('Sessions must be greater than 0 minutes long to count.');
@@ -85,13 +83,13 @@ const SubjectCard = memo(function SubjectCard({
     }
 
     if (onLogSession) {
-      onLogSession(sub.id, logStartTime, logEndTime, diffMins, logDate);
+      onLogSession(sub.id, undefined, undefined, diffMins, logDate);
     }
     setIsLogOpen(false);
-    setLogStartTime('');
-    setLogEndTime('');
-    setLogDate(new Date().toISOString().split('T')[0]);
-  }, [logStartTime, logEndTime, logDate, onLogSession, sub.id]);
+    setLogHours('');
+    setLogMinutes('');
+    setLogDate(toLocalDateString());
+  }, [logHours, logMinutes, logDate, onLogSession, sub.id]);
 
   // ── Edit submit / cancel ──────────────────────────────────────────────────
   const handleEditSave = useCallback((e) => {
@@ -167,8 +165,8 @@ const SubjectCard = memo(function SubjectCard({
   const daysLeft = subDeadlineDate ? getDaysLeft(getStartOfDay(), subDeadlineDate) : 0;
   const tHours = sub.target_hours || 0;
   const vHours = sub.valid_hours || 0;
-  const dailyReq = daysLeft >= 0 ? (tHours - vHours) / Math.max(1, daysLeft) : 0;
-  const totalPressure = dailyReq + (sub.carryover || 0);
+  // Use the midnight-frozen snapshot; fall back to live calculation only if snapshot isn't set yet
+  const totalPressure = sub.daily_target ?? (daysLeft >= 0 ? (tHours - vHours) / Math.max(1, daysLeft) : 0);
 
   const todayHours = sub.completed_today || 0;
   const todayTarget = totalPressure;
@@ -428,24 +426,29 @@ const SubjectCard = memo(function SubjectCard({
           <div className="flex gap-4">
             <div className="flex-1 flex flex-col gap-1.5">
               <label className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase text-text-secondary/40">
-                Start Time
+                Hours
               </label>
               <input
-                type="time"
-                value={logStartTime}
-                onChange={(e) => setLogStartTime(e.target.value)}
+                type="number"
+                min="0"
+                placeholder="0"
+                value={logHours}
+                onChange={(e) => setLogHours(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
                 className="w-full bg-text-primary/5 border border-text-primary/10 rounded-lg px-3 py-2 text-[13px] font-mono text-text-primary/70 focus:outline-none focus:border-text-primary/30 transition-colors"
               />
             </div>
             <div className="flex-1 flex flex-col gap-1.5">
               <label className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase text-text-secondary/40">
-                End Time
+                Minutes
               </label>
               <input
-                type="time"
-                value={logEndTime}
-                onChange={(e) => setLogEndTime(e.target.value)}
+                type="number"
+                min="0"
+                max="59"
+                placeholder="0"
+                value={logMinutes}
+                onChange={(e) => setLogMinutes(e.target.value)}
                 onClick={(e) => e.stopPropagation()}
                 className="w-full bg-text-primary/5 border border-text-primary/10 rounded-lg px-3 py-2 text-[13px] font-mono text-text-primary/70 focus:outline-none focus:border-text-primary/30 transition-colors"
               />
@@ -478,7 +481,7 @@ const SubjectCard = memo(function SubjectCard({
           <button
             type="button"
             onClick={handleLogSubmit}
-            disabled={!logStartTime || !logEndTime || durationMins <= 0}
+            disabled={durationMins <= 0}
             className="px-4 py-1.5 rounded-lg text-[13px] text-white font-medium hover:brightness-110 transition-all focus:outline-none disabled:opacity-40 disabled:pointer-events-none"
             style={{ backgroundColor: accentColor }}
           >

@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 const TABS = [
   { id: 'goals', label: 'Goals' },
   { id: 'todo', label: 'To-Do' },
-  { id: 'analytics', label: 'Analytics' }
+  { id: 'analytics', label: 'Digest' }
 ];
 
 export default function Navbar({ activeTab, onTabChange }) {

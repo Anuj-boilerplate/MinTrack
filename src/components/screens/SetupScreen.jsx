@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useStateContext, useUserContext } from '../../contexts/StateContext';
 import { addActionToQueue, processSyncQueue } from '../../lib/syncQueue';
+import { parseDateAsLocal } from '../../utils';
 import DatePicker from '../DatePicker';
 
 export default function SetupScreen() {
@@ -12,8 +13,8 @@ export default function SetupScreen() {
   const handleStartTerm = async (e) => {
     e.preventDefault();
     const newTerm = {
-      startDate: new Date(startDate).toISOString(),
-      endDate: new Date(endDate).toISOString()
+      startDate: parseDateAsLocal(startDate).toISOString(),
+      endDate: parseDateAsLocal(endDate).toISOString()
     };
     
     updateState({ term: newTerm });

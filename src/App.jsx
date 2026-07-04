@@ -10,7 +10,7 @@ import HomeScreen from './components/screens/HomeScreen';
 import TimerScreen from './components/screens/TimerScreen';
 import Navbar from './components/Navbar';
 import TodoScreen from './components/screens/TodoScreen';
-import AnalyticsScreen from './components/screens/AnalyticsScreen';
+import DigestScreen from './components/screens/DigestScreen';
 
 import AddSubjectModal from './components/modals/AddSubjectModal';
 
@@ -18,7 +18,7 @@ import SettingsModal from './components/modals/SettingsModal';
 import PomodoroConfigModal from './components/modals/PomodoroConfigModal';
 import SessionReviewModal from './components/modals/SessionReviewModal';
 import UpdateModal from './components/modals/UpdateModal';
-import { getSessionRangeFromTimes } from './utils';
+import { getSessionRangeFromTimes, splitSessionAtMidnight, calculateDailyTarget, parseDateAsLocal } from './utils';
 import { APP_VERSION } from './config';
 import { AnimatePresence, motion } from 'framer-motion';
 import TopBar from './components/TopBar';
@@ -104,7 +104,18 @@ function AppContent() {
 
   const handleAddSubject = async (name, target, deadline) => {
     const newId = crypto.randomUUID();
-    const newSubject = { id: newId, name, target_hours: target, valid_hours: 0, carryover: 0, deadline };
+    const newSubject = {
+      id: newId,
+      name,
+      target_hours: target,
+      valid_hours: 0,
+      deadline,
+      sessions: [],
+      daily_target: calculateDailyTarget(
+        { target_hours: target, valid_hours: 0, deadline, sessions: [] },
+        state.term?.endDate
+      )
+    };
 
     updateState(prev => ({
       ...prev,
@@ -166,76 +177,60 @@ function AppContent() {
   };
 
   const handleManualLog = async (subjectId, startStr, endStr, durationMins, dateStr) => {
-    const hours = durationMins / 60;
-    const refDate = dateStr ? new Date(dateStr) : new Date();
+    const refDate = dateStr ? parseDateAsLocal(dateStr) : new Date();
     const range = getSessionRangeFromTimes(startStr, endStr, refDate);
-    const sub = state.subjects.find((s) => s.id === subjectId);
-    const newValidHours = (sub?.valid_hours || 0) + hours;
+    
+    const startTimeISO = range?.start.toISOString() || refDate.toISOString();
+    const endTimeISO = range?.end.toISOString() || refDate.toISOString();
 
-    const newSession = {
-      id: crypto.randomUUID(),
-      subject_id: subjectId,
-      start_time: range?.start.toISOString() || refDate.toISOString(),
-      end_time: range?.end.toISOString() || refDate.toISOString(),
-      duration_minutes: durationMins,
-      is_discarded: false
-    };
+    const newSessions = splitSessionAtMidnight(subjectId, startTimeISO, endTimeISO, durationMins);
 
-    const isToday = new Date(refDate).toDateString() === new Date().toDateString();
-
-    updateState(prev => ({
-      ...prev,
-      subjects: prev.subjects.map(s => s.id === subjectId
-        ? {
-          ...s,
-          valid_hours: newValidHours,
-          completed_today: (s.completed_today || 0) + (isToday ? hours : 0),
-          sessions: [newSession, ...(s.sessions || [])]
-        }
-        : s)
-    }));
+    updateState(prev => {
+      return {
+        ...prev,
+        subjects: prev.subjects.map(s => s.id === subjectId
+          ? {
+            ...s,
+            sessions: [...newSessions, ...(s.sessions || [])]
+          }
+          : s)
+      };
+    });
     setActiveModal(null);
 
-    await addSessionToQueue({
-      ...newSession,
-      new_valid_hours: newValidHours
-    });
+    for (const session of newSessions) {
+      await addSessionToQueue(session);
+    }
 
     // We still call processSyncQueue but the queue handles it
     scheduleSyncQueue();
   };
 
   const handleSaveSession = async (data) => {
-    const sub = state.subjects.find((s) => s.id === data.subjectId);
-    const newValidHours = (sub?.valid_hours || 0) + data.hours;
+    const startTimeISO = data.startTime;
+    const endTimeISO = new Date().toISOString();
+    const durationMins = data.hours * 60;
 
-    const newSession = {
-      id: crypto.randomUUID(),
-      subject_id: data.subjectId,
-      start_time: data.startTime,
-      end_time: new Date().toISOString(),
-      duration_minutes: data.hours * 60,
-      is_discarded: false
-    };
+    const newSessions = splitSessionAtMidnight(data.subjectId, startTimeISO, endTimeISO, durationMins);
 
-    updateState(prev => ({
-      ...prev,
-      subjects: prev.subjects.map(s => s.id === data.subjectId
-        ? {
-          ...s,
-          valid_hours: newValidHours,
-          completed_today: (s.completed_today || 0) + data.hours,
-          sessions: [newSession, ...(s.sessions || [])]
-        }
-        : s)
-    }));
+    updateState(prev => {
+      return {
+        ...prev,
+        subjects: prev.subjects.map(s => s.id === data.subjectId
+          ? {
+            ...s,
+            sessions: [...newSessions, ...(s.sessions || [])]
+          }
+          : s)
+      };
+    });
+    
     setActiveModal(null);
     setSessionReviewData(null);
 
-    await addSessionToQueue({
-      ...newSession,
-      new_valid_hours: newValidHours
-    });
+    for (const session of newSessions) {
+      await addSessionToQueue(session);
+    }
 
     scheduleSyncQueue();
   };
@@ -280,7 +275,7 @@ function AppContent() {
                     />
                   )}
                   {activeTab === 'todo' && <TodoScreen />}
-                  {activeTab === 'analytics' && <AnalyticsScreen />}
+                  {activeTab === 'analytics' && <DigestScreen />}
                 </motion.div>
                 <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
               </div>
