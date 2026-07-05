@@ -2,6 +2,24 @@
 
 export const CHANGELOG = [
   {
+    version: '2.2.0',
+    date: '2026-07-05',
+    changes: [
+      {
+        title: "To-Do Overhaul",
+        description: "Complete overhaul of the way to do list works, allowing for complete freedom in scheduling tasks."
+      },
+      {
+        title: "Date Navigation Bounds",
+        description: "Clamped the date navigation in both Desktop and Mobile views so you can no longer scroll indefinitely past the active term boundaries."
+      },
+      {
+        title: "Recurring tasks",
+        description: "Following GTD Principles, You can now schedule recurring tasks. I hope you like the new features :D!"
+      }
+    ]
+  },
+  {
     version: '2.1.1',
     date: '2026-07-01',
     changes: [

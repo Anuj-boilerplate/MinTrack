@@ -69,15 +69,22 @@ async function processActionQueue() {
             subject_id: action.payload.subject_id,
             title: action.payload.title,
             is_completed: action.payload.is_completed,
-            scheduled_for_today: action.payload.scheduled_for_today,
+            is_scratched_today: action.payload.is_scratched_today ?? false,
+            recurrence_days: action.payload.recurrence_days ?? null,
+            scheduled_date: action.payload.scheduled_date ?? null,
+            display_order: action.payload.display_order ?? 0,
             created_at: action.payload.created_at
           }));
           break;
         case 'UPDATE_TODO': {
           const updatePayload = {};
-          if (action.payload.title !== undefined) updatePayload.title = action.payload.title;
-          if (action.payload.is_completed !== undefined) updatePayload.is_completed = action.payload.is_completed;
-          if (action.payload.scheduled_for_today !== undefined) updatePayload.scheduled_for_today = action.payload.scheduled_for_today;
+          const p = action.payload;
+          if (p.title !== undefined)              updatePayload.title = p.title;
+          if (p.is_completed !== undefined)       updatePayload.is_completed = p.is_completed;
+          if (p.is_scratched_today !== undefined) updatePayload.is_scratched_today = p.is_scratched_today;
+          if (p.scheduled_date !== undefined)     updatePayload.scheduled_date = p.scheduled_date;
+          if (p.recurrence_days !== undefined)    updatePayload.recurrence_days = p.recurrence_days;
+          if (p.display_order !== undefined)      updatePayload.display_order = p.display_order;
           ({ error } = await supabase.from('todos').update(updatePayload).eq('id', action.todoId));
           break;
         }

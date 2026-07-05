@@ -95,20 +95,30 @@
 
   [data-theme="light"] {
     color-scheme: light;
-    --bg-main: #e8dfc8; /* Warm Parchment Base */
-    --bg-secondary: #dfd4b8; /* Slightly deeper recessed area */
+    --bg-main: #e8dfc8;
+    /* Warm Parchment Base */
+    --bg-secondary: #dfd4b8;
+    /* Slightly deeper recessed area */
     --bg-gradient-1: radial-gradient(circle at top left, rgba(192, 90, 70, 0.08), transparent 50%);
     --bg-gradient-2: radial-gradient(circle at 82% 15%, rgba(181, 137, 0, 0.05), transparent 35%);
-    --bg-glass: rgba(244, 239, 225, 0.7); /* Cream Parchment Glass */
-    --bg-glass-strong: #fdfaf2; /* Soft Lighter Paper */
+    --bg-glass: rgba(244, 239, 225, 0.7);
+    /* Cream Parchment Glass */
+    --bg-glass-strong: #fdfaf2;
+    /* Soft Lighter Paper */
     --bg-glass-recessed: rgba(92, 80, 68, 0.04);
-    --border-glass: rgba(92, 80, 68, 0.12); /* Soft Ink Border */
+    --border-glass: rgba(92, 80, 68, 0.12);
+    /* Soft Ink Border */
     --border-glass-bright: rgba(92, 80, 68, 0.22);
-    --text-primary: #2d2822; /* Dark Ink Typography */
-    --text-secondary: #5c5246; /* Medium Ink Typography */
-    --text-muted: #8a7d6e; /* Muted Sepia Ink */
-    --accent: #c05a46; /* Terracotta Primary Accent */
-    --accent-soft: #d0826f; /* Muted Terracotta Accent */
+    --text-primary: #2d2822;
+    /* Dark Ink Typography */
+    --text-secondary: #5c5246;
+    /* Medium Ink Typography */
+    --text-muted: #8a7d6e;
+    /* Muted Sepia Ink */
+    --accent: #c05a46;
+    /* Terracotta Primary Accent */
+    --accent-soft: #d0826f;
+    /* Muted Terracotta Accent */
     --accent-glow: rgba(192, 90, 70, 0.06);
     --glass-shadow: rgba(60, 48, 38, 0.04);
     --glass-shadow-strong: rgba(60, 48, 38, 0.07);
@@ -118,7 +128,8 @@
     --modal-overlay: rgba(60, 50, 40, 0.2);
     --card-shadow-hover: rgba(60, 48, 38, 0.08);
     --input-border: rgba(92, 80, 68, 0.15);
-    --date-filter: sepia(1) saturate(0.5); /* Keep calendar icon matching sepia tone */
+    --date-filter: sepia(1) saturate(0.5);
+    /* Keep calendar icon matching sepia tone */
     --progress-bg: rgba(92, 80, 68, 0.06);
     --surface-highlight: rgba(255, 255, 255, 0.35);
     --surface-ground: rgba(92, 80, 68, 0.04);
@@ -1187,17 +1198,160 @@
     }
   }
 
-  /* ── Todo Masonry Grid ── */
-  .todo-masonry-grid {
-    columns: 420px;
-    column-gap: 2rem;
+  /* ── The Runway ── */
+  .runway-shell {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 180px);
+    overflow: hidden;
   }
 
-  .todo-card-wrapper {
-    break-inside: avoid;
-    margin-bottom: 2rem;
-    display: inline-block;
-    width: 100%;
+  .runway-day-strip {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 12px;
+    flex-shrink: 0;
+  }
+
+  .runway-day-strip::-webkit-scrollbar {
+    display: none;
+  }
+
+  .runway-columns {
+    display: flex;
+    gap: 12px;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── Unified column — every day is the same element ── */
+  .runway-col {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 16px;
+    border: 1px solid var(--border-glass);
+    background: var(--card-bg);
+    padding: 16px;
+    position: relative;
+    transition: flex 500ms cubic-bezier(0.4, 0, 0.2, 1),
+      opacity 400ms ease,
+      border-color 300ms ease,
+      background-color 300ms ease,
+      box-shadow 300ms ease;
+  }
+
+  /* Peek (collapsed) state */
+  .runway-col--peek {
+    flex: 0 0 80px;
+    cursor: pointer;
+    opacity: 0.55;
+    background: var(--bg-glass-recessed);
+    border-color: var(--border-glass);
+  }
+
+  .runway-col--peek:hover {
+    opacity: 0.8;
+    background: var(--bg-glass);
+    border-color: var(--border-glass-bright);
+  }
+
+  /* Active (expanded) state */
+  .runway-col--active {
+    flex: 1 1 0%;
+    opacity: 1;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    background: var(--card-bg);
+    border-color: var(--border-glass-bright);
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.22),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.1),
+      0 32px 64px -20px var(--glass-shadow-strong);
+  }
+
+  /* Peek content: visible when collapsed, hidden when active */
+  .runway-col--peek .runway-peek-content {
+    opacity: 1;
+    transition: opacity 300ms ease 100ms;
+  }
+
+  .runway-col--active .runway-peek-content {
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    transition: opacity 150ms ease;
+  }
+
+  /* Active content: visible when active, hidden when collapsed */
+  .runway-col--active .runway-active-content {
+    opacity: 1;
+    transition: opacity 300ms ease 200ms;
+  }
+
+  .runway-col--peek .runway-active-content {
+    opacity: 0;
+    pointer-events: none;
+    position: absolute;
+    height: 0;
+    overflow: hidden;
+    transition: opacity 150ms ease;
+  }
+
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Task chips */
+  .task-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border-radius: 12px;
+    margin-bottom: 8px;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    transition: all 200ms ease;
+  }
+
+  .task-chip:hover {
+    transform: translateY(-1px);
+    border-color: rgba(255, 255, 255, 0.15);
+  }
+
+  .task-chip.scratched {
+    opacity: 0.25;
+  }
+
+  .task-chip.scratched .task-title {
+    text-decoration: line-through;
+    color: var(--text-muted);
+  }
+
+  .task-chip-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Done trail separator */
+  .done-trail-divider {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 16px 0 8px;
+    opacity: 0.35;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
   }
 
   @media (max-width: 520px) {
@@ -1232,7 +1386,7 @@
       border-radius: 16px;
     }
 
-    .recent-sessions-list > div:nth-child(3) {
+    .recent-sessions-list>div:nth-child(3) {
       display: none;
     }
 
@@ -1289,14 +1443,18 @@
       padding-bottom: 80px;
     }
 
-    /* To-Do mobile: single column, tighter spacing */
-    .todo-masonry-grid {
-      columns: 1;
-      column-gap: 0;
+    /* Runway mobile: single column, hide peeks */
+    .runway-col-today {
+      flex: 0 0 100%;
+      padding-right: 0;
     }
 
-    .todo-card-wrapper {
-      margin-bottom: 1rem;
+    .runway-col-peek {
+      display: none !important;
+    }
+
+    .runway-shell {
+      height: calc(100vh - 160px);
     }
 
     .home-topbar {

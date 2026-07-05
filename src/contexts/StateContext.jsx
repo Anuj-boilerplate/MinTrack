@@ -37,14 +37,17 @@ function normalizeSubject(subject) {
 function normalizeTodo(todo) {
   return {
     id: todo.id,
-    subject_id: todo.subject_id,
+    subject_id: todo.subject_id || null,
     title: todo.title || '',
     is_completed: Boolean(todo.is_completed),
-    scheduled_for_today: Boolean(todo.scheduled_for_today),
+    is_scratched_today: Boolean(todo.is_scratched_today),
+    recurrence_days: Array.isArray(todo.recurrence_days) ? todo.recurrence_days : null,
+    scheduled_date: todo.scheduled_date || null,
+    display_order: todo.display_order ?? 0,
     created_at: todo.created_at ? new Date(todo.created_at).toISOString() : new Date().toISOString(),
     note: todo.note || '',
     deadline: todo.deadline || null,
-    priority: todo.priority || 'low'
+    priority: todo.priority || 'medium'
   };
 }
 
@@ -181,8 +184,8 @@ export const StateProvider = ({ children, session }) => {
 
       if (isNewDay) {
         patchedState.todos.forEach(todo => {
-          if (todo.scheduled_for_today && !todo.is_completed) {
-            todo.scheduled_for_today = false;
+          if (todo.is_scratched_today) {
+            todo.is_scratched_today = false;
           }
         });
         patchedState.last_updated_date = today.toISOString();
@@ -250,7 +253,7 @@ export const StateProvider = ({ children, session }) => {
       if (dbTodos && dbTodos.length > 0) {
         const userSubjectIds = new Set(patchedState.subjects.map(s => s.id));
         patchedState.todos = dbTodos
-          .filter(t => userSubjectIds.has(t.subject_id))
+          .filter(t => !t.subject_id || userSubjectIds.has(t.subject_id))
           .map(dbTodo => {
             const localTodo = patchedState.todos.find(lt => lt.id === dbTodo.id) || {};
             // Prefer local values for mutable fields so in-flight mutations aren't overwritten
@@ -258,16 +261,19 @@ export const StateProvider = ({ children, session }) => {
               ...dbTodo,
               title: localTodo.title || dbTodo.title || '',
               is_completed: localTodo.id ? (localTodo.is_completed ?? dbTodo.is_completed ?? false) : (dbTodo.is_completed ?? false),
-              scheduled_for_today: localTodo.id ? (localTodo.scheduled_for_today ?? dbTodo.scheduled_for_today ?? false) : (dbTodo.scheduled_for_today ?? false),
+              is_scratched_today: localTodo.id ? (localTodo.is_scratched_today ?? dbTodo.is_scratched_today ?? false) : (dbTodo.is_scratched_today ?? false),
+              recurrence_days: localTodo.id ? (localTodo.recurrence_days ?? dbTodo.recurrence_days ?? null) : (dbTodo.recurrence_days ?? null),
+              scheduled_date: localTodo.id ? (localTodo.scheduled_date ?? dbTodo.scheduled_date ?? null) : (dbTodo.scheduled_date ?? null),
+              display_order: localTodo.id ? (localTodo.display_order ?? dbTodo.display_order ?? 0) : (dbTodo.display_order ?? 0),
               created_at: dbTodo.created_at ? new Date(dbTodo.created_at).toISOString() : new Date().toISOString(),
               note: localTodo.note ?? dbTodo.note ?? '',
               deadline: localTodo.deadline ?? dbTodo.deadline ?? null,
-              priority: localTodo.priority ?? dbTodo.priority ?? 'low'
+              priority: localTodo.priority ?? dbTodo.priority ?? 'medium'
             };
           });
         // Also keep any local-only todos not yet in DB (queued inserts)
         const dbIds = new Set(patchedState.todos.map(t => t.id));
-        const localOnlyTodos = localTodosSnapshot.filter(t => !dbIds.has(t.id) && userSubjectIds.has(t.subject_id));
+        const localOnlyTodos = localTodosSnapshot.filter(t => !dbIds.has(t.id) && (!t.subject_id || userSubjectIds.has(t.subject_id)));
         patchedState.todos = [...patchedState.todos, ...localOnlyTodos];
       } else if (patchedState.todos.length > 0) {
         const toInsert = patchedState.todos.map(todo => ({
@@ -275,7 +281,10 @@ export const StateProvider = ({ children, session }) => {
           subject_id: todo.subject_id,
           title: todo.title,
           is_completed: todo.is_completed,
-          scheduled_for_today: todo.scheduled_for_today,
+          is_scratched_today: todo.is_scratched_today,
+          recurrence_days: todo.recurrence_days,
+          scheduled_date: todo.scheduled_date,
+          display_order: todo.display_order,
           created_at: todo.created_at
         }));
         await supabase.from('todos').upsert(toInsert);
@@ -309,8 +318,8 @@ export const StateProvider = ({ children, session }) => {
         const lastUpdate = getStartOfDay(new Date(prev.last_updated_date));
         if (lastUpdate.getTime() < today.getTime()) {
           const nextTodos = prev.todos.map(todo => {
-            if (todo.scheduled_for_today && !todo.is_completed) {
-              return { ...todo, scheduled_for_today: false };
+            if (todo.is_scratched_today) {
+              return { ...todo, is_scratched_today: false };
             }
             return todo;
           });
@@ -364,14 +373,25 @@ export const StateProvider = ({ children, session }) => {
 
   const userId = session?.user?.id;
 
-  const addTodo = useCallback(async (subjectId, title, note = '', deadline = null, priority = 'low') => {
+  const addTodo = useCallback(async (
+    title,
+    note = '',
+    deadline = null,
+    priority = 'medium',
+    subjectId = null,
+    scheduledDate = null,
+    recurrenceDays = null
+  ) => {
     const newId = crypto.randomUUID();
     const newTodo = {
       id: newId,
       subject_id: subjectId,
       title,
       is_completed: false,
-      scheduled_for_today: false,
+      is_scratched_today: false,
+      recurrence_days: recurrenceDays,
+      scheduled_date: scheduledDate,
+      display_order: 0,
       created_at: new Date().toISOString(),
       note,
       deadline,
@@ -392,7 +412,10 @@ export const StateProvider = ({ children, session }) => {
           subject_id: newTodo.subject_id,
           title: newTodo.title,
           is_completed: newTodo.is_completed,
-          scheduled_for_today: newTodo.scheduled_for_today,
+          is_scratched_today: newTodo.is_scratched_today,
+          recurrence_days: newTodo.recurrence_days,
+          scheduled_date: newTodo.scheduled_date,
+          display_order: newTodo.display_order,
           created_at: newTodo.created_at
         }
       });
@@ -424,12 +447,12 @@ export const StateProvider = ({ children, session }) => {
     }
   }, [userId, updateState]);
 
-  const toggleTodoScheduled = useCallback(async (id) => {
+  const toggleTodoScratched = useCallback(async (id) => {
     let updatedTodo = null;
     updateState(prev => {
       const todos = prev.todos.map(t => {
         if (t.id === id) {
-          updatedTodo = { ...t, scheduled_for_today: !t.scheduled_for_today };
+          updatedTodo = { ...t, is_scratched_today: !t.is_scratched_today };
           return updatedTodo;
         }
         return t;
@@ -441,7 +464,53 @@ export const StateProvider = ({ children, session }) => {
       await addActionToQueue({
         type: 'UPDATE_TODO',
         todoId: id,
-        payload: { scheduled_for_today: updatedTodo.scheduled_for_today }
+        payload: { is_scratched_today: updatedTodo.is_scratched_today }
+      });
+      scheduleTodoSync();
+    }
+  }, [userId, updateState]);
+
+  const moveTodoToDate = useCallback(async (id, newDate) => {
+    let updatedTodo = null;
+    updateState(prev => {
+      const todos = prev.todos.map(t => {
+        if (t.id === id) {
+          updatedTodo = { ...t, scheduled_date: newDate };
+          return updatedTodo;
+        }
+        return t;
+      });
+      return { ...prev, todos };
+    });
+
+    if (userId && updatedTodo) {
+      await addActionToQueue({
+        type: 'UPDATE_TODO',
+        todoId: id,
+        payload: { scheduled_date: newDate }
+      });
+      scheduleTodoSync();
+    }
+  }, [userId, updateState]);
+
+  const updateTodoRecurrence = useCallback(async (id, recurrenceDays) => {
+    let updatedTodo = null;
+    updateState(prev => {
+      const todos = prev.todos.map(t => {
+        if (t.id === id) {
+          updatedTodo = { ...t, recurrence_days: recurrenceDays };
+          return updatedTodo;
+        }
+        return t;
+      });
+      return { ...prev, todos };
+    });
+
+    if (userId && updatedTodo) {
+      await addActionToQueue({
+        type: 'UPDATE_TODO',
+        todoId: id,
+        payload: { recurrence_days: recurrenceDays }
       });
       scheduleTodoSync();
     }
@@ -516,7 +585,9 @@ export const StateProvider = ({ children, session }) => {
     loading,
     addTodo,
     toggleTodoCompleted,
-    toggleTodoScheduled,
+    toggleTodoScratched,
+    moveTodoToDate,
+    updateTodoRecurrence,
     deleteTodo,
     updateTodoTitle,
     setSubjectAccentColor,
@@ -525,7 +596,7 @@ export const StateProvider = ({ children, session }) => {
     isTransitioning,
     transitionToTheme,
     onTransitionDone
-  }), [state, mappedSubjects, updateState, loading, addTodo, toggleTodoCompleted, toggleTodoScheduled, deleteTodo, updateTodoTitle, setSubjectAccentColor, theme, toggleTheme, isTransitioning, transitionToTheme, onTransitionDone]);
+  }), [state, mappedSubjects, updateState, loading, addTodo, toggleTodoCompleted, toggleTodoScratched, moveTodoToDate, updateTodoRecurrence, deleteTodo, updateTodoTitle, setSubjectAccentColor, theme, toggleTheme, isTransitioning, transitionToTheme, onTransitionDone]);
 
   const userContextValue = useMemo(() => ({
     userId,

@@ -200,7 +200,7 @@ const SubjectCard = memo(function SubjectCard({
               onClick={handleCardClick}
             >
               <h2
-                className="font-serif text-[28px] font-normal leading-tight tracking-wide truncate"
+                className="font-serif text-[22px] sm:text-[26px] md:text-[28px] font-normal leading-tight tracking-wide truncate"
                 style={{ color: isActive ? accentColor : hexToRgba(accentColor, 0.3) }}
               >
                 {sub.name.trim()}
@@ -653,7 +653,7 @@ function computeCardStyle(cardIndex, fractionalActiveIndex, stride) {
 // ---------------------------------------------------------------------------
 // HomeScreen
 // ---------------------------------------------------------------------------
-export default function HomeScreen({ onOpenModal, onLogSession, onEditSubject, onDeleteSubject, onStartSession }) {
+export default function HomeScreen({ onOpenModal, onLogSession, onEditSubject, onDeleteSubject, onStartSession, isActive }) {
   const { state, setSubjectAccentColor, theme } = useStateContext();
   const [activeIndex, setActiveIndex] = useState(0);
   const [prevSubjects, setPrevSubjects] = useState(state.subjects);
@@ -708,21 +708,23 @@ export default function HomeScreen({ onOpenModal, onLogSession, onEditSubject, o
     });
   }, []);
 
-  // After mount (and on resize), measure card width and update stride:
+  // After mount (and on resize or tab activation), measure card width and update stride:
   useEffect(() => {
     const measure = () => {
       const card = trackRef.current?.querySelector('[data-card-index]');
-      if (card) {
+      if (card && card.offsetWidth > 0) {
         cardStrideRef.current = card.offsetWidth * 0.95;
         if (!isAnimatingEntranceRef.current) {
           applyTransforms(activeIndex, false);
         }
       }
     };
-    measure();
+    if (isActive) {
+      measure();
+    }
     window.addEventListener('resize', measure);
     return () => window.removeEventListener('resize', measure);
-  }, [activeIndex, applyTransforms]);
+  }, [activeIndex, applyTransforms, isActive]);
 
   // Apply transforms whenever activeIndex settles (React render → DOM sync)
   useEffect(() => {

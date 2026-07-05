@@ -266,16 +266,21 @@ function AppContent() {
                   exit={{ opacity: 0, scale: 0.95 }}
                   transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
                 >
-                  {activeTab === 'goals' && (
+                  <div className={activeTab === 'goals' ? 'flex-grow flex flex-col w-full' : 'hidden'}>
                     <HomeScreen
+                      isActive={activeTab === 'goals'}
                       onOpenModal={handleOpenModal}
                       onLogSession={handleManualLog}
                       onEditSubject={handleEditSubject}
                       onDeleteSubject={handleDeleteSubject}
                     />
-                  )}
-                  {activeTab === 'todo' && <TodoScreen />}
-                  {activeTab === 'analytics' && <DigestScreen />}
+                  </div>
+                  <div className={activeTab === 'todo' ? 'flex-grow flex flex-col w-full' : 'hidden'}>
+                    <TodoScreen isActive={activeTab === 'todo'} />
+                  </div>
+                  <div className={activeTab === 'analytics' ? 'flex-grow flex flex-col w-full' : 'hidden'}>
+                    <DigestScreen />
+                  </div>
                 </motion.div>
                 <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
               </div>

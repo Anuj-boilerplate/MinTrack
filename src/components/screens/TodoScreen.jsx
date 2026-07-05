@@ -1,535 +1,614 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useStateContext } from '../../contexts/StateContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getAccentColor } from '../../utils';
 
-// Helper to convert hex to rgba
-function hexToRgba(hex, opacity) {
-  if (!hex) return `rgba(255, 255, 255, ${opacity})`;
-  const num = parseInt(hex.replace('#', ''), 16);
-  const r = (num >> 16) & 255;
-  const g = (num >> 8) & 255;
-  const b = num & 255;
-  return `rgba(${r}, ${g}, ${b}, ${opacity})`;
-}
+import MobileRunway from './MobileRunway';
+import { hexToRgba, formatTodoDeadline, formatRecurrence, getDateForOffset, getTodosForDate } from '../../utils/todoHelpers';
 
-const ACCENT_COLORS = [
-  { name: 'Dusty Rose', hex: '#c97b6e' },
-  { name: 'Sage Green', hex: '#6b8f71' },
-  { name: 'Warm Amber', hex: '#c49a3c' },
-  { name: 'Slate Blue', hex: '#5b7a99' },
-  { name: 'Muted Lavender', hex: '#8b82b8' },
-  { name: 'Terracotta', hex: '#b5603a' },
-  { name: 'Soft Teal', hex: '#4a8c8c' },
-  { name: 'Antique Gold', hex: '#b8960c' }
-];
-
-// Date Formatter Helper (e.g. MAY 20)
-function formatTodoDeadline(dateStr) {
-  if (!dateStr) return '';
-  // Handle standard YYYY-MM-DD or ISO
-  const date = new Date(dateStr);
-  if (isNaN(date.getTime())) return dateStr;
-  const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-  return `${months[date.getMonth()]} ${date.getDate()}`;
-}
-
-export default function TodoScreen() {
+export default function TodoScreen({ isActive }) {
   const {
     state,
     addTodo,
     toggleTodoCompleted,
-    toggleTodoScheduled,
+    toggleTodoScratched,
     deleteTodo,
-    setSubjectAccentColor,
     theme
   } = useStateContext();
   const isLight = theme === 'light';
 
-  const [activePicker, setActivePicker] = useState(null); // ID of subject with open color picker
-  const [addingTaskForSub, setAddingTaskForSub] = useState(null); // ID of subject adding task
-  
-  // Task inputs
-  const [newTaskName, setNewTaskName] = useState('');
-  const [newTaskNote, setNewTaskNote] = useState('');
-  const [newTaskDeadline, setNewTaskDeadline] = useState('');
-  const [newTaskPriority, setNewTaskPriority] = useState('low');
+  // Pivot date centering the 7-day runway window
+  const [pivotDate, setPivotDate] = useState(new Date());
+  const [activeDateStr, setActiveDateStr] = useState(new Date().toISOString().split('T')[0]);
+  const [isJumpNavigating, setIsJumpNavigating] = useState(false);
+  const activePillRef = useRef(null);
 
-  const handleAddTaskSubmit = async (subId) => {
-    if (!newTaskName.trim()) return;
-    await addTodo(subId, newTaskName.trim(), newTaskNote.trim(), newTaskDeadline || null, newTaskPriority);
-    // Reset inputs
-    setNewTaskName('');
-    setNewTaskNote('');
-    setNewTaskDeadline('');
-    setNewTaskPriority('low');
-    setAddingTaskForSub(null);
+  useEffect(() => {
+    if (activePillRef.current) {
+      activePillRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [activeDateStr]);
+
+  // Keyboard navigation for active date
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+        e.preventDefault();
+        const current = new Date(activeDateStr);
+        current.setDate(current.getDate() + (e.key === 'ArrowRight' ? 1 : -1));
+        const nextDateStr = current.toISOString().split('T')[0];
+
+        const termStart = state.term?.startDate?.split('T')[0];
+        const termEnd = state.term?.endDate?.split('T')[0];
+        if (termStart && nextDateStr < termStart) return;
+        if (termEnd && nextDateStr > termEnd) return;
+
+        const pivot = new Date(pivotDate);
+        const diffTime = current.getTime() - pivot.getTime();
+        const diffDays = Math.round(diffTime / (1000 * 3600 * 24));
+
+        if (diffDays > 4) {
+          pivot.setDate(pivot.getDate() + 1);
+          setPivotDate(pivot);
+        } else if (diffDays < -2) {
+          pivot.setDate(pivot.getDate() - 1);
+          setPivotDate(pivot);
+        }
+        setActiveDateStr(nextDateStr);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeDateStr, pivotDate, state.term]);
+
+  // Task creation state
+  const [isAdding, setIsAdding] = useState(false);
+  const [taskTitle, setTaskTitle] = useState('');
+  const [taskNote, setTaskNote] = useState('');
+  const [taskSubjectId, setTaskSubjectId] = useState('');
+  const [taskRecurrence, setTaskRecurrence] = useState([]); // Weekday indices
+  const [taskDeadline, setTaskDeadline] = useState('');
+  const [taskPriority, setTaskPriority] = useState('medium'); // low, medium, high
+  const [completingIds, setCompletingIds] = useState([]);
+
+  const handleComplete = (todo) => {
+    setCompletingIds(prev => [...prev, todo.id]);
+    setTimeout(() => {
+      if (todo.recurrence_days && todo.recurrence_days.length > 0) {
+        toggleTodoScratched(todo.id);
+      } else {
+        toggleTodoCompleted(todo.id);
+      }
+      setCompletingIds(prev => prev.filter(id => id !== todo.id));
+    }, 400);
   };
 
-  // Keyboard navigation for addition
-  const handleKeyDown = (e, subId) => {
-    if (e.key === 'Enter') {
-      handleAddTaskSubmit(subId);
-    } else if (e.key === 'Escape') {
-      setAddingTaskForSub(null);
-    }
+  const OFFSETS = [-2, -1, 0, 1, 2, 3, 4];
+
+  const handlePrevWeek = () => {
+    const d = new Date(pivotDate);
+    d.setDate(d.getDate() - 7);
+    setPivotDate(d);
   };
 
-  // Empty state rendering details per card index
-  const getEmptyStateContent = (index, subName) => {
-    const lowercaseName = subName.toLowerCase();
-    if (lowercaseName.includes('internship') || index === 0) {
-      return {
-        icon: (
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary/20">
-            <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
-            <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
-          </svg>
-        ),
-        text1: "No tasks for today.",
-        text2: "Enjoy the calm. You've earned it."
-      };
-    } else if (lowercaseName.includes('leetcode') || index === 1) {
-      return {
-        icon: (
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary/20">
-            <polyline points="16 18 22 12 16 6"></polyline>
-            <polyline points="8 6 2 12 8 18"></polyline>
-          </svg>
-        ),
-        text1: "No tasks for today.",
-        text2: "Enjoy the calm. You've earned it."
-      };
-    } else if (lowercaseName.includes('subject 3') || index === 2) {
-      return {
-        icon: (
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary/20">
-            <polygon points="12 2 15 9 22 12 15 15 12 22 9 15 2 12 9 9 12 2"></polygon>
-          </svg>
-        ),
-        text1: "No tasks for today.",
-        text2: "A blank page is part of the process."
-      };
-    } else if (lowercaseName.includes('subject 4') || index === 3) {
-      return {
-        icon: (
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary/20">
-            <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 3.5 1 9.8a7 7 0 0 1-9 8.2Z"></path>
-            <path d="M19 2c-2.26 4.33-5.27 7.14-8 10"></path>
-          </svg>
-        ),
-        text1: "No tasks for today.",
-        text2: "Let the mind wander. Ideas need space."
-      };
-    } else {
-      return {
-        icon: (
-          <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary/20">
-            <path d="M2 12c4-4 8-4 12 0s8 4 12 0"></path>
-            <path d="M2 17c4-4 8-4 12 0s8 4 12 0"></path>
-          </svg>
-        ),
-        text1: "No tasks for today.",
-        text2: "Take a breath. Clarity comes in quiet."
-      };
-    }
+  const handleNextWeek = () => {
+    const d = new Date(pivotDate);
+    d.setDate(d.getDate() + 7);
+    setPivotDate(d);
+  };
+
+  const handleGoToToday = () => {
+    const today = new Date();
+    setPivotDate(today);
+    setActiveDateStr(today.toISOString().split('T')[0]);
+    setIsJumpNavigating(true);
+    setTimeout(() => setIsJumpNavigating(false), 400);
+  };
+
+  const handleAddTask = async (e) => {
+    if (e) e.preventDefault();
+    if (!taskTitle.trim()) return;
+
+    // Determine target scheduled date
+    const targetDate = taskRecurrence.length > 0
+      ? null
+      : activeDateStr;
+
+    await addTodo(
+      taskTitle.trim(),
+      taskNote.trim(),
+      taskDeadline || null,
+      taskPriority,
+      taskSubjectId || null,
+      targetDate,
+      taskRecurrence.length > 0 ? taskRecurrence : null
+    );
+
+    // Reset task form
+    setTaskTitle('');
+    setTaskNote('');
+    setTaskSubjectId('');
+    setTaskRecurrence([]);
+    setTaskDeadline('');
+    setTaskPriority('medium');
+    setIsAdding(false);
   };
 
   return (
     <div id="todo-screen" className="pt-2 pb-12 min-h-screen text-text-primary select-none animate-[screenFade_0.6s_cubic-bezier(0.25,0.46,0.45,0.94)]">
-      <div className="todo-masonry-grid" style={{ width: '100%' }}>
-        {state.subjects.map((sub, index) => {
-          const accentColor = sub.accentColor || '#c97b6e';
-          const cardTodos = state.todos.filter(t => t.subject_id === sub.id);
-          const todayTodos = cardTodos.filter(t => t.scheduled_for_today);
-          const backlogTodos = cardTodos.filter(t => !t.scheduled_for_today);
-          
-          const isPickerOpen = activePicker === sub.id;
-          const isAddingTask = addingTaskForSub === sub.id;
+      <div className="runway-shell">
+        {/* Navigation header for shifting weeks / selecting date */}
+        <div className="flex justify-between items-center mb-3 md:mb-6 px-2">
+          <div className="flex flex-col">
+            <span className="text-[12px] md:text-[14px] font-medium tracking-wide text-text-primary/95">
+              {(() => {
+                const dateObj = new Date(activeDateStr + 'T12:00:00');
+                const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                return `${months[dateObj.getMonth()]} ${dateObj.getFullYear()}`;
+              })()}
+            </span>
+            <span className="hidden md:inline text-[11px] text-text-secondary/50 font-serif italic mt-0.5">
+              {activeDateStr === new Date().toISOString().split('T')[0] ? 'Showing Today' : 'Navigating runway'}
+            </span>
+          </div>
 
-          // Priority rule opacity mapping
-          const getPriorityOpacity = (priority) => {
-            if (priority === 'high') return 'opacity-100';
-            if (priority === 'medium') return 'opacity-60';
-            return 'opacity-30';
-          };
-
-          return (
-            <div
-              key={sub.id}
-              className="todo-card-wrapper"
+          <div className="flex items-center gap-1.5 md:gap-2">
+            <button
+              onClick={handlePrevWeek}
+              className="p-1 md:p-1.5 rounded-lg border border-text-primary/5 bg-text-primary/[0.02] hover:bg-text-primary/5 transition-all text-text-secondary/70"
+              title="Previous Week"
+              type="button"
             >
-              <div
-                className="flex flex-col rounded-[12px] p-5 sm:p-[28px] transition-all duration-300"
-                style={{
-                  backgroundColor: 'var(--card-bg)',
-                  backgroundImage: `linear-gradient(${hexToRgba(accentColor, 0.04)}, ${hexToRgba(accentColor, 0.04)})`,
-                  border: '1px solid var(--border-glass)'
-                }}
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="md:w-4 md:h-4">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+            </button>
+
+            <button
+              onClick={handleGoToToday}
+              className="px-2.5 py-1 rounded-lg text-[10px] md:text-[11px] font-semibold border border-text-primary/5 bg-text-primary/[0.02] hover:bg-text-primary/5 transition-all text-text-primary/90"
+              type="button"
+            >
+              Today
+            </button>
+
+            <button
+              onClick={handleNextWeek}
+              className="p-1 md:p-1.5 rounded-lg border border-text-primary/5 bg-text-primary/[0.02] hover:bg-text-primary/5 transition-all text-text-secondary/70"
+              title="Next Week"
+              type="button"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="md:w-4 md:h-4">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+
+            <div className="relative ml-1">
+              <button
+                className="p-1 md:p-1.5 rounded-lg border border-text-primary/5 bg-text-primary/[0.02] hover:bg-text-primary/5 transition-all text-text-secondary/70 flex items-center justify-center"
+                title="Choose custom date"
+                type="button"
               >
-              <div className="flex flex-col w-full">
-                {/* Header */}
-                <div className="flex justify-between items-center mb-6">
-                  <h2 
-                    className="font-serif text-[26px] sm:text-[34px] font-normal leading-tight select-text"
-                    style={{ color: accentColor }}
-                  >
-                    {sub.name.trim()}
-                  </h2>
-                  <button
-                    onClick={() => setActivePicker(isPickerOpen ? null : sub.id)}
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-text-secondary/40 hover:text-text-primary transition-colors"
-                    type="button"
-                    title="Choose accent color"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="1"></circle>
-                      <circle cx="19" cy="12" r="1"></circle>
-                      <circle cx="5" cy="12" r="1"></circle>
-                    </svg>
-                  </button>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="md:w-4 md:h-4">
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                  <line x1="16" y1="2" x2="16" y2="6"></line>
+                  <line x1="8" y1="2" x2="8" y2="6"></line>
+                  <line x1="3" y1="10" x2="21" y2="10"></line>
+                </svg>
+              </button>
+              <input
+                type="date"
+                value={activeDateStr}
+                min={state.term?.startDate?.split('T')[0]}
+                max={state.term?.endDate?.split('T')[0]}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    const selected = new Date(e.target.value);
+                    setPivotDate(selected);
+                    setActiveDateStr(e.target.value);
+                    setIsJumpNavigating(true);
+                    setTimeout(() => setIsJumpNavigating(false), 400);
+                  }
+                }}
+                className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop Runway Columns wrapper */}
+        <div className="hidden md:flex runway-columns px-2">
+          {OFFSETS.map(offset => {
+            const dateStr = getDateForOffset(offset, pivotDate);
+            const dayTodos = getTodosForDate(state.todos, dateStr);
+
+            const dateObj = new Date(dateStr + 'T12:00:00');
+            const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+            const label = days[dateObj.getDay()];
+            const dayNum = dateObj.getDate();
+            const actualTodayStr = new Date().toISOString().split('T')[0];
+            const isActualToday = dateStr === actualTodayStr;
+
+            // Active vs Completed
+            const activeTodos = dayTodos.filter(t => {
+              if (t.recurrence_days && t.recurrence_days.length > 0) {
+                return !t.is_scratched_today;
+              }
+              return !t.is_completed;
+            });
+
+            const doneTodos = dayTodos.filter(t => {
+              if (t.recurrence_days && t.recurrence_days.length > 0) {
+                return t.is_scratched_today;
+              }
+              return t.is_completed;
+            });
+
+            const pendingCount = activeTodos.length;
+            const isActive = dateStr === activeDateStr;
+
+            const termStart = state.term?.startDate?.split('T')[0];
+            const termEnd = state.term?.endDate?.split('T')[0];
+            const isOutOfBounds = (termStart && dateStr < termStart) || (termEnd && dateStr > termEnd);
+
+            return (
+              <div
+                key={offset}
+                onClick={() => { if (!isActive && !isOutOfBounds) setActiveDateStr(dateStr); }}
+                className={`runway-col ${isActive ? 'runway-col--active' : 'runway-col--peek'} ${isOutOfBounds ? 'opacity-20 pointer-events-none' : ''}`}
+              >
+                {/* ── Peek content (visible when collapsed) ── */}
+                <div className="runway-peek-content h-full flex flex-col items-center">
+                  {/* Date Header for Peek */}
+                  <div className={`flex flex-col items-center mb-6 mt-2 ${isActualToday ? 'text-accent' : 'text-text-primary/70'}`}>
+                    <span className="text-[10px] tracking-wider font-bold opacity-70 mb-1">{label}</span>
+                    <span className="text-[24px] font-serif leading-none">{dayNum}</span>
+                    <div className="flex gap-1 mt-2 h-1.5 items-center">
+                      {isActualToday && pendingCount === 0 && <div className="w-1.5 h-1.5 rounded-full bg-accent/40" />}
+                      {pendingCount > 0 && <div className="w-1.5 h-1.5 rounded-full bg-accent" />}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col gap-2.5 w-full items-center">
+                    {activeTodos.slice(0, 5).map(todo => {
+                      const sub = state.subjects.find(s => s.id === todo.subject_id);
+                      return (
+                        <div key={todo.id} className="w-2 h-2 rounded-full opacity-60" style={{ backgroundColor: sub?.accentColor || 'var(--border-glass-bright)' }} title={todo.title} />
+                      );
+                    })}
+                    {activeTodos.length > 5 && (
+                      <div className="w-2 h-2 rounded-full bg-text-primary/20" title={`${activeTodos.length - 5} more`} />
+                    )}
+                    {dayTodos.length === 0 && (
+                      <div className="opacity-20 text-[10px]">—</div>
+                    )}
+                  </div>
                 </div>
 
-                {/* Color Picker Inline Section */}
-                <AnimatePresence mode="wait">
-                  {isPickerOpen ? (
-                    <motion.div
-                      key="color-picker"
-                      initial={{ opacity: 0, y: 5 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: 5 }}
-                      transition={{ duration: 0.3 }}
-                      className="flex flex-col w-full py-4"
-                    >
-                      <div className="flex justify-between items-center mb-5 text-[13px] text-text-secondary/60">
-                        <span>Choose your accent color</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-60">
-                          <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 14.7255 3.09032 17.1962 4.85857 19C5.35483 19.5 5.5 20 5.5 20.5C5.5 21.3284 6.17157 22 7 22H12Z"></path>
-                          <circle cx="7.5" cy="10.5" r="1.5"></circle>
-                          <circle cx="11.5" cy="7.5" r="1.5"></circle>
-                          <circle cx="16.5" cy="9.5" r="1.5"></circle>
-                          <circle cx="15.5" cy="14.5" r="1.5"></circle>
-                        </svg>
-                      </div>
+                {/* ── Active content (visible when expanded) ── */}
+                <div className="runway-active-content">
+                  {/* Date Header for Active */}
+                  <div className="flex items-end gap-3 mb-6 px-1">
+                    <span className={`text-[36px] font-serif leading-none ${isActualToday ? 'text-accent' : 'text-text-primary'}`}>{dayNum}</span>
+                    <div className="flex flex-col pb-1">
+                      <span className="text-[12px] tracking-widest font-bold opacity-50 uppercase">{label}</span>
+                      <span className="text-[11px] opacity-40 font-mono">
+                        {pendingCount} {pendingCount === 1 ? 'task' : 'tasks'} remaining
+                      </span>
+                    </div>
+                  </div>
+                  {/* Inline task creation */}
+                  <div className="mb-6">
+                    {!isAdding ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setIsAdding(true); }}
+                        className="w-full text-left px-4 py-3 rounded-xl bg-text-primary/[0.02] border border-text-primary/[0.04] text-text-secondary/50 hover:bg-text-primary/[0.04] hover:border-text-primary/[0.08] transition-all text-[14px] flex items-center gap-2"
+                        type="button"
+                      >
+                        <span className="text-[18px] font-light leading-none mb-0.5 opacity-60">+</span> What needs doing?
+                      </button>
+                    ) : (
+                      <motion.form
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        transition={{ duration: 0.3 }}
+                        className="p-4 rounded-xl border border-text-primary/10 bg-text-primary/[0.02] flex flex-col gap-3 overflow-hidden"
+                        onSubmit={handleAddTask}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <input
+                          type="text"
+                          placeholder="What needs to be done?"
+                          value={taskTitle}
+                          onChange={(e) => setTaskTitle(e.target.value)}
+                          className="bg-transparent font-sans text-[16px] font-medium placeholder-text-secondary/30 focus:outline-none w-full"
+                          autoFocus
+                          required
+                        />
 
-                      <div className="grid grid-cols-4 gap-4 mb-6">
-                        {ACCENT_COLORS.map((color) => {
-                          const isSelected = accentColor === getAccentColor(color.hex, isLight);
-                          return (
-                            <button
-                              key={color.name}
-                              onClick={() => {
-                                setSubjectAccentColor(sub.id, color.hex);
-                                setActivePicker(null);
-                              }}
-                              className="flex flex-col items-center group focus:outline-none"
-                              type="button"
+                        <AnimatePresence>
+                          {taskTitle.length > 0 && (
+                            <motion.div
+                              initial={{ opacity: 0, height: 0 }}
+                              animate={{ opacity: 1, height: 'auto' }}
+                              exit={{ opacity: 0, height: 0 }}
+                              transition={{ duration: 0.25 }}
+                              className="flex flex-col gap-3 overflow-hidden"
                             >
-                              <div
-                                className="w-12 h-12 rounded-[8px] relative flex items-center justify-center transition-transform group-hover:scale-105"
-                                style={{ backgroundColor: getAccentColor(color.hex, isLight) }}
+                              <input
+                                type="text"
+                                placeholder="Add a note..."
+                                value={taskNote}
+                                onChange={(e) => setTaskNote(e.target.value)}
+                                className="bg-transparent text-[13px] text-text-secondary/60 placeholder-text-secondary/20 focus:outline-none w-full mt-1"
+                              />
+
+                              {/* Inline Toolbar */}
+                              <div className="flex flex-wrap gap-x-5 gap-y-3 items-center pt-3 border-t border-text-primary/5">
+                                {/* Subject Picker */}
+                                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none flex-1 min-w-0 pr-4">
+                                  <span className="text-[10px] text-text-secondary/40 font-semibold uppercase tracking-widest mr-1 shrink-0">Subj</span>
+                                  <button type="button" onClick={() => setTaskSubjectId('')} className={`shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-full border transition-all ${!taskSubjectId ? 'border-text-primary/30 bg-text-primary/5 text-text-primary' : 'border-transparent text-text-secondary/50 hover:bg-text-primary/5 hover:text-text-primary'}`}>
+                                    <div className="w-2 h-2 rounded-full bg-text-primary/20" />
+                                    <span className="text-[11px] font-medium">None</span>
+                                  </button>
+                                  {state.subjects.map(s => (
+                                    <button key={s.id} type="button" onClick={() => setTaskSubjectId(s.id)} className={`shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-full border transition-all ${taskSubjectId === s.id ? 'border-text-primary/30 bg-text-primary/5 text-text-primary' : 'border-transparent text-text-secondary/50 hover:bg-text-primary/5 hover:text-text-primary'}`}>
+                                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.accentColor }} />
+                                      <span className="text-[11px] font-medium">{s.name}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                                {/* Priority Picker removed */}
+
+                                {/* Deadline Date */}
+                                <div className="flex items-center ml-auto">
+                                  <span className="text-[10px] text-text-secondary/40 font-semibold uppercase tracking-widest mr-2">Deadline</span>
+                                  <input
+                                    type="date"
+                                    value={taskDeadline}
+                                    onChange={(e) => setTaskDeadline(e.target.value)}
+                                    className="bg-text-primary/5 border border-text-primary/5 rounded-lg px-2 py-1 text-[11px] text-text-secondary focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+
+                              {/* Weekday selector for recurrence */}
+                              <div className="flex flex-col gap-2 pt-3 border-t border-text-primary/5">
+                                <span className="text-[10px] text-text-secondary/40 font-semibold uppercase tracking-widest">Repeat</span>
+                                <div className="flex gap-1.5">
+                                  {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((dayChar, i) => {
+                                    const dayVal = i === 6 ? 0 : i + 1;
+                                    const isSelected = taskRecurrence.includes(dayVal);
+                                    return (
+                                      <button
+                                        key={i}
+                                        type="button"
+                                        onClick={() => {
+                                          if (isSelected) {
+                                            setTaskRecurrence(taskRecurrence.filter(d => d !== dayVal));
+                                          } else {
+                                            setTaskRecurrence([...taskRecurrence, dayVal]);
+                                          }
+                                        }}
+                                        className={`w-7 h-7 rounded-full text-[11px] font-medium flex items-center justify-center transition-all ${isSelected
+                                          ? 'bg-brand-accent text-white shadow-sm'
+                                          : 'bg-text-primary/5 text-text-secondary/50 hover:bg-text-primary/10'
+                                          }`}
+                                      >
+                                        {dayChar}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Action buttons */}
+                              <div className="flex justify-end gap-2 pt-2 mt-2">
+                                <button
+                                  onClick={() => setIsAdding(false)}
+                                  className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-text-secondary/50 hover:text-text-primary transition-colors"
+                                  type="button"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  type="submit"
+                                  className="px-4 py-1.5 rounded-lg text-[12px] bg-text-primary text-background-main font-semibold hover:opacity-90 transition-opacity"
+                                >
+                                  Add Task
+                                </button>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </motion.form>
+                    )}
+                  </div>
+
+                  {/* Empty State */}
+                  {dayTodos.length === 0 && !isAdding && (
+                    <div className="flex flex-col items-center justify-center py-12 text-center">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="text-text-secondary/15 mb-3">
+                        <polygon points="12 2 15 9 22 12 15 15 12 22 9 15 2 12 9 9 12 2"></polygon>
+                      </svg>
+                      <p className="font-serif italic text-[16px] text-text-secondary/30">
+                        Nothing left for today.
+                      </p>
+                      <p className="font-serif italic text-[16px] text-text-secondary/30">
+                        Enjoy the quiet.
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Active tasks list */}
+                  <div className="space-y-2">
+                    <AnimatePresence initial={false}>
+                      {activeTodos.map(todo => {
+                        const sub = state.subjects.find(s => s.id === todo.subject_id);
+                        const accentColor = sub?.accentColor || 'var(--border-glass-bright)';
+
+                        const borderColor = hexToRgba(accentColor, 0.75);
+                        const isCompleting = completingIds.includes(todo.id);
+
+                        return (
+                          <motion.div
+                            key={todo.id}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className={`task-chip group min-h-[44px] bg-text-primary/[0.03] border border-text-primary/[0.08] ${isCompleting ? 'opacity-50 pointer-events-none' : ''}`}
+                            style={{ borderLeft: `4px solid ${borderColor}` }}
+                          >
+                            <div
+                              className="task-chip-dot"
+                              style={{ backgroundColor: accentColor }}
+                            />
+
+                            <div className="flex-grow min-w-0 flex flex-col opacity-[0.9]">
+                              <span className="task-title font-sans text-[15px] truncate">
+                                {todo.title}
+                              </span>
+                              {todo.note && (
+                                <span className="text-[12px] text-text-secondary/50 truncate">
+                                  {todo.note}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-3 flex-shrink-0">
+                              {todo.recurrence_days && todo.recurrence_days.length > 0 && (
+                                <span className="text-[11px] opacity-40 font-mono" title="Recurrence">
+                                  ↻ {formatRecurrence(todo.recurrence_days)}
+                                </span>
+                              )}
+                              {todo.deadline && !todo.recurrence_days && (
+                                <span className="text-[11px] opacity-40 font-mono">
+                                  {formatTodoDeadline(todo.deadline)}
+                                </span>
+                              )}
+
+                              <button
+                                onClick={() => handleComplete(todo)}
+                                className={`relative w-5 h-5 rounded-full border flex items-center justify-center transition-colors duration-200 ${isCompleting ? 'border-accent bg-accent' : 'border-text-primary/20 hover:border-accent hover:bg-accent/10'}`}
+                                type="button"
                               >
-                                {isSelected && (
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#ffffff" : "#1a1a1a"} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                                {isCompleting && (
+                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
                                     <polyline points="20 6 9 17 4 12"></polyline>
                                   </svg>
                                 )}
-                              </div>
-                              <span className="text-[10px] text-text-secondary/40 mt-1 text-center truncate w-full group-hover:text-text-secondary/60">
-                                {color.name}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
-
-                      <p className="text-[11px] text-text-secondary/40 text-center">
-                        This will update the look of your goal.
-                      </p>
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="tasks-view"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      transition={{ duration: 0.3 }}
-                      className="flex flex-col w-full"
-                    >
-                      {/* TODAY Section */}
-                      <div className="mb-6">
-                        <div className="flex items-center justify-between mb-2">
-                          <span 
-                            className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase"
-                            style={{ color: hexToRgba(accentColor, 0.7) }}
-                          >
-                            TODAY
-                          </span>
-                        </div>
-                        <div 
-                          className="h-[1px] w-full mb-4" 
-                          style={{ backgroundColor: hexToRgba(accentColor, 0.15) }}
-                        />
-
-                        {todayTodos.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center py-6 text-center">
-                            <div className="mb-3">
-                              {getEmptyStateContent(index, sub.name).icon}
-                            </div>
-                            <p className="font-serif italic text-[15px] text-text-secondary/35 leading-relaxed">
-                              {getEmptyStateContent(index, sub.name).text1}
-                            </p>
-                            <p className="font-serif italic text-[15px] text-text-secondary/35 leading-relaxed">
-                              {getEmptyStateContent(index, sub.name).text2}
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="space-y-3.5">
-                            <AnimatePresence initial={false}>
-                              {todayTodos.map((todo) => (
-                                <motion.div
-                                  key={todo.id}
-                                  layoutId={todo.id}
-                                  initial={{ opacity: 0, y: -5 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  exit={{ opacity: 0, y: 5 }}
-                                  transition={{ duration: 0.3, ease: 'easeOut' }}
-                                  className={`flex items-start justify-between group py-1 ${todo.is_completed ? 'opacity-50' : ''}`}
-                                >
-                                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                                    {/* Priority left rule */}
-                                    <div 
-                                      className={`w-[3px] h-[34px] rounded-full self-stretch ${getPriorityOpacity(todo.priority)}`}
-                                      style={{ backgroundColor: accentColor }}
-                                    />
-                                    {/* Checkbox */}
-                                    <button
-                                      onClick={() => toggleTodoCompleted(todo.id)}
-                                      className="w-5 h-5 rounded-[4px] border border-text-primary/20 flex items-center justify-center flex-shrink-0 mt-0.5 transition-colors focus:outline-none"
-                                      style={{
-                                        backgroundColor: todo.is_completed ? accentColor : 'transparent',
-                                        borderColor: todo.is_completed ? accentColor : (isLight ? 'rgba(92, 80, 68, 0.25)' : 'rgba(255, 255, 255, 0.2)')
-                                      }}
-                                      type="button"
-                                    >
-                                      {todo.is_completed && (
-                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={isLight ? "#ffffff" : "#16120e"} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                                          <polyline points="20 6 9 17 4 12"></polyline>
-                                        </svg>
-                                      )}
-                                    </button>
-                                    <div className="flex flex-col min-w-0">
-                                      <span 
-                                        className={`font-sans text-[15px] font-normal leading-normal truncate ${todo.is_completed ? 'line-through text-text-secondary/40' : 'text-text-primary/85'}`}
-                                      >
-                                        {todo.title}
-                                      </span>
-                                      {todo.note && (
-                                        <span className="font-sans text-[13px] text-text-secondary/40 leading-normal truncate">
-                                          {todo.note}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                  
-                                  <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                                    {todo.deadline && (
-                                      <span className="font-mono text-[12px] text-text-secondary/35 mt-1 self-start">
-                                        {formatTodoDeadline(todo.deadline)}
-                                      </span>
-                                    )}
-                                    <button
-                                      onClick={() => deleteTodo(todo.id)}
-                                      className="opacity-0 group-hover:opacity-100 transition-opacity text-text-secondary/30 hover:text-red-400/70 focus:outline-none p-0.5"
-                                      type="button"
-                                      title="Delete task"
-                                    >
-                                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                                      </svg>
-                                    </button>
-                                  </div>
-                                </motion.div>
-                              ))}
-                            </AnimatePresence>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* BACKLOG Section */}
-                      <div className="mb-2">
-                        <div className="flex items-center justify-between mb-2">
-                          <span 
-                            className="font-sans text-[10px] font-semibold tracking-[0.15em] uppercase"
-                            style={{ color: hexToRgba(accentColor, 0.7) }}
-                          >
-                            BACKLOG
-                          </span>
-                        </div>
-                        <div 
-                          className="h-[1px] w-full mb-4" 
-                          style={{ backgroundColor: hexToRgba(accentColor, 0.15) }}
-                        />
-
-                        {backlogTodos.length === 0 && !isAddingTask ? (
-                          <div className="py-2 text-center">
-                            {/* Empty state for Backlog just silent empty space */}
-                          </div>
-                        ) : (
-                          <div className="space-y-3.5 mb-4">
-                            <AnimatePresence initial={false}>
-                              {backlogTodos.map((todo) => (
-                                <motion.div
-                                  key={todo.id}
-                                  layoutId={todo.id}
-                                  initial={{ opacity: 0, y: -5 }}
-                                  animate={{ opacity: 1, y: 0 }}
-                                  exit={{ opacity: 0, y: 5 }}
-                                  transition={{ duration: 0.3, ease: 'easeOut' }}
-                                  className="flex items-start justify-between group py-1 text-text-secondary/55"
-                                >
-                                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                                    {/* Priority left rule */}
-                                    <div 
-                                      className={`w-[3px] h-[34px] rounded-full self-stretch ${getPriorityOpacity(todo.priority)}`}
-                                      style={{ backgroundColor: accentColor }}
-                                    />
-                                    {/* Checkbox (Disabled in backlog) */}
-                                    <div className="w-5 h-5 rounded-[4px] border border-text-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5 opacity-50 cursor-not-allowed bg-transparent" />
-                                    
-                                    <div className="flex flex-col min-w-0">
-                                      <span className="font-sans text-[15px] font-normal leading-normal truncate">
-                                        {todo.title}
-                                      </span>
-                                      {todo.note && (
-                                        <span className="font-sans text-[13px] text-text-secondary/40 leading-normal truncate">
-                                          {todo.note}
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  <div className="flex items-center gap-2 ml-2 flex-shrink-0">
-                                    {/* Hover Today Button */}
-                                    <button
-                                      onClick={() => toggleTodoScheduled(todo.id)}
-                                      className="opacity-0 group-hover:opacity-100 transition-opacity bg-text-primary/5 hover:bg-text-primary/10 border border-text-primary/10 px-2 py-0.5 rounded text-[11px] text-text-primary/70 hover:text-text-primary"
-                                      type="button"
-                                    >
-                                      → Today
-                                    </button>
-
-                                    {todo.deadline && (
-                                      <span className="font-mono text-[12px] text-text-secondary/35 self-start">
-                                        {formatTodoDeadline(todo.deadline)}
-                                      </span>
-                                    )}
-
-                                    <button
-                                      onClick={() => deleteTodo(todo.id)}
-                                      className="opacity-0 group-hover:opacity-100 transition-opacity text-text-secondary/30 hover:text-red-400/70 focus:outline-none p-0.5"
-                                      type="button"
-                                      title="Delete task"
-                                    >
-                                      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                        <line x1="18" y1="6" x2="6" y2="18"></line>
-                                        <line x1="6" y1="6" x2="18" y2="18"></line>
-                                      </svg>
-                                    </button>
-                                  </div>
-                                </motion.div>
-                              ))}
-                            </AnimatePresence>
-                          </div>
-                        )}
-
-                        {/* Inline Task Creation Form */}
-                        {isAddingTask ? (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.3 }}
-                            className="bg-black/20 border border-text-primary/5 rounded-[8px] p-4 space-y-3 mb-4"
-                          >
-                            <input
-                              type="text"
-                              placeholder="Task name..."
-                              value={newTaskName}
-                              onChange={(e) => setNewTaskName(e.target.value)}
-                              onKeyDown={(e) => handleKeyDown(e, sub.id)}
-                              className="w-full bg-text-primary/5 border border-text-primary/10 rounded px-3 py-1.5 text-[14px] text-text-primary/90 placeholder-text-secondary/35 focus:outline-none focus:border-text-primary/30"
-                              autoFocus
-                            />
-                            <input
-                              type="text"
-                              placeholder="Note..."
-                              value={newTaskNote}
-                              onChange={(e) => setNewTaskNote(e.target.value)}
-                              onKeyDown={(e) => handleKeyDown(e, sub.id)}
-                              className="w-full bg-text-primary/5 border border-text-primary/10 rounded px-3 py-1.5 text-[13px] text-text-primary/70 placeholder-text-secondary/35 focus:outline-none focus:border-text-primary/30"
-                            />
-                            <div className="grid grid-cols-2 gap-3">
-                              <input
-                                type="date"
-                                value={newTaskDeadline}
-                                onChange={(e) => setNewTaskDeadline(e.target.value)}
-                                className="bg-text-primary/5 border border-text-primary/10 rounded px-2 py-1 text-[12px] text-text-primary/70 focus:outline-none focus:border-text-primary/30 w-full"
-                              />
-                              <select
-                                value={newTaskPriority}
-                                onChange={(e) => setNewTaskPriority(e.target.value)}
-                                className="bg-text-primary/5 border border-text-primary/10 rounded px-2 py-1 text-[12px] text-text-primary/70 focus:outline-none focus:border-text-primary/30 w-full"
-                              >
-                                <option value="low" className="bg-[var(--bg-secondary)] text-[var(--text-primary)]">Low Priority</option>
-                                <option value="medium" className="bg-[var(--bg-secondary)] text-[var(--text-primary)]">Medium Priority</option>
-                                <option value="high" className="bg-[var(--bg-secondary)] text-[var(--text-primary)]">High Priority</option>
-                              </select>
-                            </div>
-
-                            <div className="flex justify-end gap-2 pt-1 text-[12px]">
-                              <button
-                                onClick={() => setAddingTaskForSub(null)}
-                                className="px-3 py-1 text-text-secondary/50 hover:text-text-primary"
-                                type="button"
-                              >
-                                Cancel
                               </button>
+
                               <button
-                                onClick={() => handleAddTaskSubmit(sub.id)}
-                                className="px-3 py-1 rounded text-white font-medium hover:brightness-115 transition-all"
-                                style={{ backgroundColor: accentColor }}
+                                onClick={() => deleteTodo(todo.id)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity text-text-secondary/20 hover:text-red-400/80 p-0.5"
                                 type="button"
+                                title="Delete task"
                               >
-                                Add Task
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                                </svg>
                               </button>
                             </div>
                           </motion.div>
-                        ) : (
-                          <button
-                            onClick={() => {
-                              setAddingTaskForSub(sub.id);
-                              setNewTaskName('');
-                              setNewTaskNote('');
-                              setNewTaskDeadline('');
-                              setNewTaskPriority('low');
-                            }}
-                            className="text-[13px] text-text-secondary/40 hover:text-text-primary/70 transition-colors flex items-center gap-1.5 focus:outline-none"
-                            type="button"
-                          >
-                            <span>+ Add task</span>
-                          </button>
-                        )}
+                        );
+                      })}
+                    </AnimatePresence>
+                  </div>
+
+                  {/* Done/Trail section */}
+                  {doneTodos.length > 0 && (
+                    <div className="mt-6">
+                      <div className="done-trail-divider">
+                        <span className="font-semibold text-[10px] tracking-wider">
+                          {activeTodos.length === 0 ? 'All done ✦' : `${doneTodos.length} Completed`}
+                        </span>
+                        <div className="h-[1px] bg-text-primary/10 flex-grow" />
                       </div>
-                    </motion.div>
+
+                      <div className="space-y-2 opacity-50">
+                        {doneTodos.map(todo => {
+                          const sub = state.subjects.find(s => s.id === todo.subject_id);
+                          const accentColor = sub?.accentColor || 'var(--text-muted)';
+
+                          return (
+                            <div
+                              key={todo.id}
+                              className="task-chip scratched"
+                              style={{ borderLeft: `3px solid ${hexToRgba(accentColor, 0.4)}` }}
+                            >
+                              <div
+                                className="task-chip-dot opacity-40"
+                                style={{ backgroundColor: accentColor }}
+                              />
+                              <div className="flex-grow min-w-0 flex flex-col">
+                                <span className="task-title font-sans text-[15px] truncate flex items-center gap-1.5">
+                                  {todo.title}
+                                  {todo.recurrence_days && todo.recurrence_days.length > 0 && (
+                                    <span className="text-[14px] text-accent font-bold" title="Recurring task">↻</span>
+                                  )}
+                                </span>
+                                {todo.note && (
+                                  <span className="text-[12px] text-text-secondary/40 truncate">
+                                    {todo.note}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2 flex-shrink-0">
+                                <button
+                                  onClick={() => {
+                                    if (todo.recurrence_days && todo.recurrence_days.length > 0) {
+                                      toggleTodoScratched(todo.id);
+                                    } else {
+                                      toggleTodoCompleted(todo.id);
+                                    }
+                                  }}
+                                  className="w-5 h-5 rounded-full border border-accent flex items-center justify-center bg-accent/10"
+                                  type="button"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                    <polyline points="20 6 9 17 4 12"></polyline>
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
                   )}
-                </AnimatePresence>
+                </div>
               </div>
-            </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+
+        {/* Mobile Swipe Carousel */}
+        {isActive && (
+          <MobileRunway
+            className="flex md:hidden"
+            activeDateStr={activeDateStr}
+            setActiveDateStr={setActiveDateStr}
+            state={state}
+            isAdding={isAdding} setIsAdding={setIsAdding}
+            taskTitle={taskTitle} setTaskTitle={setTaskTitle}
+            taskNote={taskNote} setTaskNote={setTaskNote}
+            taskSubjectId={taskSubjectId} setTaskSubjectId={setTaskSubjectId}
+            taskRecurrence={taskRecurrence} setTaskRecurrence={setTaskRecurrence}
+            taskDeadline={taskDeadline} setTaskDeadline={setTaskDeadline}
+            taskPriority={taskPriority} setTaskPriority={setTaskPriority}
+            handleAddTask={handleAddTask}
+            completingIds={completingIds}
+            handleComplete={handleComplete}
+            deleteTodo={deleteTodo}
+            isJumpNavigating={isJumpNavigating}
+          />
+        )}
       </div>
     </div>
   );
