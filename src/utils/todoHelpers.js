@@ -40,13 +40,6 @@ export function getTodosForDate(todos, dateStr) {
     if (todo.recurrence_days && todo.recurrence_days.length > 0) {
       return todo.recurrence_days.includes(dow);
     }
-    const actualTodayStr = new Date().toISOString().split('T')[0];
-    const isToday = dateStr === actualTodayStr;
-    if (isToday) {
-      if (!todo.is_completed && todo.scheduled_date && todo.scheduled_date < dateStr) {
-        return true;
-      }
-    }
     return todo.scheduled_date === dateStr;
   });
 }
