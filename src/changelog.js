@@ -2,6 +2,40 @@
 
 export const CHANGELOG = [
   {
+    version: '2.3.0',
+    date: '2026-08-08',
+    changes: [
+      {
+        title: "Tasks, decoupled from Goals",
+        description: "Tasks are now their own thing. They carry their own user-level ownership, show neutral glass styling instead of goal colors, and the goal picker is gone from the task form. The Pomodoro task dropdown now lists every unfinished task."
+      },
+      {
+        title: "Unified Task Form & Chips",
+        description: "Desktop and mobile now share the same TaskForm, TaskChip, and completed-trail components — so mobile no longer miss the deadline picker, recurrence selector, or the delete button."
+      },
+      {
+        title: "Inline Edit & Reschedule",
+        description: "Tap any task title to rename it in place. Hover the arrow on desktop (tap on mobile) to move a task to tomorrow or a full date of your choice."
+      },
+      {
+        title: "Undo Delete (Mobile)",
+        description: "Deleting on mobile now hides the task and shows a 4-second undo toast before committing, so a slip is never permanent."
+      },
+      {
+        title: "Completed Trail on Mobile",
+        description: "Mobile runways now show the 'All done ✦' / N Completed trail, same as desktop."
+      },
+      {
+        title: "Removed Task Priority",
+        description: "Priority was collected and stored but never displayed. It has been stripped from creation, state, and sync."
+      },
+      {
+        title: "Sync Fixes",
+        description: "Note and deadline now sync to the cloud (they were silently dropped before), title edits sync immediately, and todos are scoped per-user with row-level security."
+      }
+    ]
+  },
+  {
     version: '2.2.0',
     date: '2026-07-05',
     changes: [

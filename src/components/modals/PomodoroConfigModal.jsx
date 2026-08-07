@@ -86,7 +86,7 @@ const clamp = (raw, fallback = 1) => Math.max(1, parseInt(raw) || fallback);
 // ---------------------------------------------------------------------------
 // PomodoroConfigModal
 // ---------------------------------------------------------------------------
-export default function PomodoroConfigModal({ onClose, onStart, subjectId, accentColor = '#c97b6e' }) {
+export default function PomodoroConfigModal({ onClose, onStart, accentColor = '#c97b6e' }) {
   const { state } = useStateContext();
   const [selectedPreset, setSelectedPreset] = useState('standard');
   const [view, setView] = useState('presets'); // 'presets' | 'custom'
@@ -97,7 +97,7 @@ export default function PomodoroConfigModal({ onClose, onStart, subjectId, accen
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const tasks = state.todos.filter(t => t.subject_id === subjectId && !t.is_completed);
+  const tasks = state.todos.filter(t => !t.is_completed);
 
   const presetsPaneRef = useRef(null);
   const customPaneRef = useRef(null);

@@ -66,14 +66,16 @@ async function processActionQueue() {
         case 'INSERT_TODO':
           ({ error } = await supabase.from('todos').insert({
             id: action.payload.id,
-            subject_id: action.payload.subject_id,
+            user_id: action.payload.user_id,
             title: action.payload.title,
             is_completed: action.payload.is_completed,
             is_scratched_today: action.payload.is_scratched_today ?? false,
             recurrence_days: action.payload.recurrence_days ?? null,
             scheduled_date: action.payload.scheduled_date ?? null,
             display_order: action.payload.display_order ?? 0,
-            created_at: action.payload.created_at
+            created_at: action.payload.created_at,
+            note: action.payload.note ?? null,
+            deadline: action.payload.deadline ?? null
           }));
           break;
         case 'UPDATE_TODO': {
@@ -85,6 +87,8 @@ async function processActionQueue() {
           if (p.scheduled_date !== undefined)     updatePayload.scheduled_date = p.scheduled_date;
           if (p.recurrence_days !== undefined)    updatePayload.recurrence_days = p.recurrence_days;
           if (p.display_order !== undefined)      updatePayload.display_order = p.display_order;
+          if (p.note !== undefined)              updatePayload.note = p.note;
+          if (p.deadline !== undefined)          updatePayload.deadline = p.deadline;
           ({ error } = await supabase.from('todos').update(updatePayload).eq('id', action.todoId));
           break;
         }

@@ -37,7 +37,7 @@ function normalizeSubject(subject) {
 function normalizeTodo(todo) {
   return {
     id: todo.id,
-    subject_id: todo.subject_id || null,
+    user_id: todo.user_id || null,
     title: todo.title || '',
     is_completed: Boolean(todo.is_completed),
     is_scratched_today: Boolean(todo.is_scratched_today),
@@ -46,8 +46,7 @@ function normalizeTodo(todo) {
     display_order: todo.display_order ?? 0,
     created_at: todo.created_at ? new Date(todo.created_at).toISOString() : new Date().toISOString(),
     note: todo.note || '',
-    deadline: todo.deadline || null,
-    priority: todo.priority || 'medium'
+    deadline: todo.deadline || null
   };
 }
 
@@ -195,7 +194,7 @@ export const StateProvider = ({ children, session }) => {
       const [{ data: dbProfile }, { data: dbSubjects }, { data: dbTodos }, { data: dbSessions }] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
         supabase.from('subjects').select('*').eq('user_id', userId),
-        supabase.from('todos').select('*'),
+        supabase.from('todos').select('*').eq('user_id', userId),
         supabase.from('sessions').select('*')
       ]);
 
@@ -251,9 +250,7 @@ export const StateProvider = ({ children, session }) => {
       // but not yet synced (completed, scheduled) to survive page reloads mid-flight.
       const localTodosSnapshot = [...patchedState.todos];
       if (dbTodos && dbTodos.length > 0) {
-        const userSubjectIds = new Set(patchedState.subjects.map(s => s.id));
         patchedState.todos = dbTodos
-          .filter(t => !t.subject_id || userSubjectIds.has(t.subject_id))
           .map(dbTodo => {
             const localTodo = patchedState.todos.find(lt => lt.id === dbTodo.id) || {};
             // Prefer local values for mutable fields so in-flight mutations aren't overwritten
@@ -267,25 +264,26 @@ export const StateProvider = ({ children, session }) => {
               display_order: localTodo.id ? (localTodo.display_order ?? dbTodo.display_order ?? 0) : (dbTodo.display_order ?? 0),
               created_at: dbTodo.created_at ? new Date(dbTodo.created_at).toISOString() : new Date().toISOString(),
               note: localTodo.note ?? dbTodo.note ?? '',
-              deadline: localTodo.deadline ?? dbTodo.deadline ?? null,
-              priority: localTodo.priority ?? dbTodo.priority ?? 'medium'
+              deadline: localTodo.deadline ?? dbTodo.deadline ?? null
             };
           });
         // Also keep any local-only todos not yet in DB (queued inserts)
         const dbIds = new Set(patchedState.todos.map(t => t.id));
-        const localOnlyTodos = localTodosSnapshot.filter(t => !dbIds.has(t.id) && (!t.subject_id || userSubjectIds.has(t.subject_id)));
+        const localOnlyTodos = localTodosSnapshot.filter(t => !dbIds.has(t.id));
         patchedState.todos = [...patchedState.todos, ...localOnlyTodos];
       } else if (patchedState.todos.length > 0) {
         const toInsert = patchedState.todos.map(todo => ({
           id: todo.id,
-          subject_id: todo.subject_id,
+          user_id: userId,
           title: todo.title,
           is_completed: todo.is_completed,
           is_scratched_today: todo.is_scratched_today,
           recurrence_days: todo.recurrence_days,
           scheduled_date: todo.scheduled_date,
           display_order: todo.display_order,
-          created_at: todo.created_at
+          created_at: todo.created_at,
+          note: todo.note,
+          deadline: todo.deadline
         }));
         await supabase.from('todos').upsert(toInsert);
       }
@@ -298,7 +296,6 @@ export const StateProvider = ({ children, session }) => {
     }
   }, []);
 
-  /* eslint-disable react-hooks/exhaustive-deps */
   useEffect(() => {
     if (!session?.user) return;
     if (initializedUserRef.current !== session.user.id) {
@@ -307,7 +304,6 @@ export const StateProvider = ({ children, session }) => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     initState(session.user.id);
   }, [session, initState]);
-  /* eslint-enable react-hooks/exhaustive-deps */
 
   // Periodic Daily Reset Check: runs every minute to silently clear hours and return uncompleted tasks to backlog
   useEffect(() => {
@@ -377,15 +373,13 @@ export const StateProvider = ({ children, session }) => {
     title,
     note = '',
     deadline = null,
-    priority = 'medium',
-    subjectId = null,
     scheduledDate = null,
     recurrenceDays = null
   ) => {
     const newId = crypto.randomUUID();
     const newTodo = {
       id: newId,
-      subject_id: subjectId,
+      user_id: userId,
       title,
       is_completed: false,
       is_scratched_today: false,
@@ -394,8 +388,7 @@ export const StateProvider = ({ children, session }) => {
       display_order: 0,
       created_at: new Date().toISOString(),
       note,
-      deadline,
-      priority
+      deadline
     };
 
     updateState(prev => ({
@@ -409,14 +402,16 @@ export const StateProvider = ({ children, session }) => {
         todoId: newId,
         payload: {
           id: newTodo.id,
-          subject_id: newTodo.subject_id,
+          user_id: newTodo.user_id,
           title: newTodo.title,
           is_completed: newTodo.is_completed,
           is_scratched_today: newTodo.is_scratched_today,
           recurrence_days: newTodo.recurrence_days,
           scheduled_date: newTodo.scheduled_date,
           display_order: newTodo.display_order,
-          created_at: newTodo.created_at
+          created_at: newTodo.created_at,
+          note: newTodo.note,
+          deadline: newTodo.deadline
         }
       });
       scheduleTodoSync();
@@ -543,6 +538,7 @@ export const StateProvider = ({ children, session }) => {
         todoId: id,
         payload: { title }
       });
+      scheduleTodoSync();
     }
   }, [userId, updateState]);
 

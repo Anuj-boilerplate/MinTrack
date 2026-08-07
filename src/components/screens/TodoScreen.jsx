@@ -1,9 +1,12 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useStateContext } from '../../contexts/StateContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 
 import MobileRunway from './MobileRunway';
-import { hexToRgba, formatTodoDeadline, formatRecurrence, getDateForOffset, getTodosForDate } from '../../utils/todoHelpers';
+import TaskChip from '../todo/TaskChip';
+import TaskForm from '../todo/TaskForm';
+import CompletedTrail from '../todo/CompletedTrail';
+import { getDateForOffset, getTodosForDate } from '../../utils/todoHelpers';
 
 export default function TodoScreen({ isActive }) {
   const {
@@ -12,21 +15,14 @@ export default function TodoScreen({ isActive }) {
     toggleTodoCompleted,
     toggleTodoScratched,
     deleteTodo,
-    theme
+    updateTodoTitle,
+    moveTodoToDate
   } = useStateContext();
-  const isLight = theme === 'light';
 
   // Pivot date centering the 7-day runway window
   const [pivotDate, setPivotDate] = useState(new Date());
   const [activeDateStr, setActiveDateStr] = useState(new Date().toISOString().split('T')[0]);
   const [isJumpNavigating, setIsJumpNavigating] = useState(false);
-  const activePillRef = useRef(null);
-
-  useEffect(() => {
-    if (activePillRef.current) {
-      activePillRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    }
-  }, [activeDateStr]);
 
   // Keyboard navigation for active date
   useEffect(() => {
@@ -65,12 +61,6 @@ export default function TodoScreen({ isActive }) {
 
   // Task creation state
   const [isAdding, setIsAdding] = useState(false);
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskNote, setTaskNote] = useState('');
-  const [taskSubjectId, setTaskSubjectId] = useState('');
-  const [taskRecurrence, setTaskRecurrence] = useState([]); // Weekday indices
-  const [taskDeadline, setTaskDeadline] = useState('');
-  const [taskPriority, setTaskPriority] = useState('medium'); // low, medium, high
   const [completingIds, setCompletingIds] = useState([]);
 
   const handleComplete = (todo) => {
@@ -83,6 +73,12 @@ export default function TodoScreen({ isActive }) {
       }
       setCompletingIds(prev => prev.filter(id => id !== todo.id));
     }, 400);
+  };
+
+  const handleUncomplete = (todoId) => {
+    const todo = state.todos.find(t => t.id === todoId);
+    if (todo?.recurrence_days?.length > 0) toggleTodoScratched(todoId);
+    else toggleTodoCompleted(todoId);
   };
 
   const OFFSETS = [-2, -1, 0, 1, 2, 3, 4];
@@ -107,32 +103,10 @@ export default function TodoScreen({ isActive }) {
     setTimeout(() => setIsJumpNavigating(false), 400);
   };
 
-  const handleAddTask = async (e) => {
-    if (e) e.preventDefault();
-    if (!taskTitle.trim()) return;
-
-    // Determine target scheduled date
-    const targetDate = taskRecurrence.length > 0
-      ? null
-      : activeDateStr;
-
-    await addTodo(
-      taskTitle.trim(),
-      taskNote.trim(),
-      taskDeadline || null,
-      taskPriority,
-      taskSubjectId || null,
-      targetDate,
-      taskRecurrence.length > 0 ? taskRecurrence : null
-    );
-
-    // Reset task form
-    setTaskTitle('');
-    setTaskNote('');
-    setTaskSubjectId('');
-    setTaskRecurrence([]);
-    setTaskDeadline('');
-    setTaskPriority('medium');
+  const handleAddTask = async (title, note, deadline, recurrenceDays) => {
+    if (!title.trim()) return;
+    const targetDate = recurrenceDays && recurrenceDays.length > 0 ? null : activeDateStr;
+    await addTodo(title.trim(), note.trim(), deadline || null, targetDate, recurrenceDays && recurrenceDays.length > 0 ? recurrenceDays : null);
     setIsAdding(false);
   };
 
@@ -272,12 +246,9 @@ export default function TodoScreen({ isActive }) {
                   </div>
 
                   <div className="flex flex-col gap-2.5 w-full items-center">
-                    {activeTodos.slice(0, 5).map(todo => {
-                      const sub = state.subjects.find(s => s.id === todo.subject_id);
-                      return (
-                        <div key={todo.id} className="w-2 h-2 rounded-full opacity-60" style={{ backgroundColor: sub?.accentColor || 'var(--border-glass-bright)' }} title={todo.title} />
-                      );
-                    })}
+                    {activeTodos.slice(0, 5).map(todo => (
+                      <div key={todo.id} className="w-2 h-2 rounded-full bg-text-primary/20" title={todo.title} />
+                    ))}
                     {activeTodos.length > 5 && (
                       <div className="w-2 h-2 rounded-full bg-text-primary/20" title={`${activeTodos.length - 5} more`} />
                     )}
@@ -299,6 +270,7 @@ export default function TodoScreen({ isActive }) {
                       </span>
                     </div>
                   </div>
+
                   {/* Inline task creation */}
                   <div className="mb-6">
                     {!isAdding ? (
@@ -310,121 +282,7 @@ export default function TodoScreen({ isActive }) {
                         <span className="text-[18px] font-light leading-none mb-0.5 opacity-60">+</span> What needs doing?
                       </button>
                     ) : (
-                      <motion.form
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        transition={{ duration: 0.3 }}
-                        className="p-4 rounded-xl border border-text-primary/10 bg-text-primary/[0.02] flex flex-col gap-3 overflow-hidden"
-                        onSubmit={handleAddTask}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        <input
-                          type="text"
-                          placeholder="What needs to be done?"
-                          value={taskTitle}
-                          onChange={(e) => setTaskTitle(e.target.value)}
-                          className="bg-transparent font-sans text-[16px] font-medium placeholder-text-secondary/30 focus:outline-none w-full"
-                          autoFocus
-                          required
-                        />
-
-                        <AnimatePresence>
-                          {taskTitle.length > 0 && (
-                            <motion.div
-                              initial={{ opacity: 0, height: 0 }}
-                              animate={{ opacity: 1, height: 'auto' }}
-                              exit={{ opacity: 0, height: 0 }}
-                              transition={{ duration: 0.25 }}
-                              className="flex flex-col gap-3 overflow-hidden"
-                            >
-                              <input
-                                type="text"
-                                placeholder="Add a note..."
-                                value={taskNote}
-                                onChange={(e) => setTaskNote(e.target.value)}
-                                className="bg-transparent text-[13px] text-text-secondary/60 placeholder-text-secondary/20 focus:outline-none w-full mt-1"
-                              />
-
-                              {/* Inline Toolbar */}
-                              <div className="flex flex-wrap gap-x-5 gap-y-3 items-center pt-3 border-t border-text-primary/5">
-                                {/* Subject Picker */}
-                                <div className="flex items-center gap-1.5 overflow-x-auto scrollbar-none flex-1 min-w-0 pr-4">
-                                  <span className="text-[10px] text-text-secondary/40 font-semibold uppercase tracking-widest mr-1 shrink-0">Subj</span>
-                                  <button type="button" onClick={() => setTaskSubjectId('')} className={`shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-full border transition-all ${!taskSubjectId ? 'border-text-primary/30 bg-text-primary/5 text-text-primary' : 'border-transparent text-text-secondary/50 hover:bg-text-primary/5 hover:text-text-primary'}`}>
-                                    <div className="w-2 h-2 rounded-full bg-text-primary/20" />
-                                    <span className="text-[11px] font-medium">None</span>
-                                  </button>
-                                  {state.subjects.map(s => (
-                                    <button key={s.id} type="button" onClick={() => setTaskSubjectId(s.id)} className={`shrink-0 flex items-center gap-1.5 px-2 py-1 rounded-full border transition-all ${taskSubjectId === s.id ? 'border-text-primary/30 bg-text-primary/5 text-text-primary' : 'border-transparent text-text-secondary/50 hover:bg-text-primary/5 hover:text-text-primary'}`}>
-                                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.accentColor }} />
-                                      <span className="text-[11px] font-medium">{s.name}</span>
-                                    </button>
-                                  ))}
-                                </div>
-                                {/* Priority Picker removed */}
-
-                                {/* Deadline Date */}
-                                <div className="flex items-center ml-auto">
-                                  <span className="text-[10px] text-text-secondary/40 font-semibold uppercase tracking-widest mr-2">Deadline</span>
-                                  <input
-                                    type="date"
-                                    value={taskDeadline}
-                                    onChange={(e) => setTaskDeadline(e.target.value)}
-                                    className="bg-text-primary/5 border border-text-primary/5 rounded-lg px-2 py-1 text-[11px] text-text-secondary focus:outline-none"
-                                  />
-                                </div>
-                              </div>
-
-                              {/* Weekday selector for recurrence */}
-                              <div className="flex flex-col gap-2 pt-3 border-t border-text-primary/5">
-                                <span className="text-[10px] text-text-secondary/40 font-semibold uppercase tracking-widest">Repeat</span>
-                                <div className="flex gap-1.5">
-                                  {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((dayChar, i) => {
-                                    const dayVal = i === 6 ? 0 : i + 1;
-                                    const isSelected = taskRecurrence.includes(dayVal);
-                                    return (
-                                      <button
-                                        key={i}
-                                        type="button"
-                                        onClick={() => {
-                                          if (isSelected) {
-                                            setTaskRecurrence(taskRecurrence.filter(d => d !== dayVal));
-                                          } else {
-                                            setTaskRecurrence([...taskRecurrence, dayVal]);
-                                          }
-                                        }}
-                                        className={`w-7 h-7 rounded-full text-[11px] font-medium flex items-center justify-center transition-all ${isSelected
-                                          ? 'bg-brand-accent text-white shadow-sm'
-                                          : 'bg-text-primary/5 text-text-secondary/50 hover:bg-text-primary/10'
-                                          }`}
-                                      >
-                                        {dayChar}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-
-                              {/* Action buttons */}
-                              <div className="flex justify-end gap-2 pt-2 mt-2">
-                                <button
-                                  onClick={() => setIsAdding(false)}
-                                  className="px-3 py-1.5 rounded-lg text-[12px] font-medium text-text-secondary/50 hover:text-text-primary transition-colors"
-                                  type="button"
-                                >
-                                  Cancel
-                                </button>
-                                <button
-                                  type="submit"
-                                  className="px-4 py-1.5 rounded-lg text-[12px] bg-text-primary text-background-main font-semibold hover:opacity-90 transition-opacity"
-                                >
-                                  Add Task
-                                </button>
-                              </div>
-                            </motion.div>
-                          )}
-                        </AnimatePresence>
-                      </motion.form>
+                      <TaskForm onSubmit={handleAddTask} onCancel={() => setIsAdding(false)} activeDateStr={activeDateStr} />
                     )}
                   </div>
 
@@ -446,141 +304,27 @@ export default function TodoScreen({ isActive }) {
                   {/* Active tasks list */}
                   <div className="space-y-2">
                     <AnimatePresence initial={false}>
-                      {activeTodos.map(todo => {
-                        const sub = state.subjects.find(s => s.id === todo.subject_id);
-                        const accentColor = sub?.accentColor || 'var(--border-glass-bright)';
-
-                        const borderColor = hexToRgba(accentColor, 0.75);
-                        const isCompleting = completingIds.includes(todo.id);
-
-                        return (
-                          <motion.div
-                            key={todo.id}
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.2 }}
-                            className={`task-chip group min-h-[44px] bg-text-primary/[0.03] border border-text-primary/[0.08] ${isCompleting ? 'opacity-50 pointer-events-none' : ''}`}
-                            style={{ borderLeft: `4px solid ${borderColor}` }}
-                          >
-                            <div
-                              className="task-chip-dot"
-                              style={{ backgroundColor: accentColor }}
-                            />
-
-                            <div className="flex-grow min-w-0 flex flex-col opacity-[0.9]">
-                              <span className="task-title font-sans text-[15px] truncate">
-                                {todo.title}
-                              </span>
-                              {todo.note && (
-                                <span className="text-[12px] text-text-secondary/50 truncate">
-                                  {todo.note}
-                                </span>
-                              )}
-                            </div>
-
-                            <div className="flex items-center gap-3 flex-shrink-0">
-                              {todo.recurrence_days && todo.recurrence_days.length > 0 && (
-                                <span className="text-[11px] opacity-40 font-mono" title="Recurrence">
-                                  ↻ {formatRecurrence(todo.recurrence_days)}
-                                </span>
-                              )}
-                              {todo.deadline && !todo.recurrence_days && (
-                                <span className="text-[11px] opacity-40 font-mono">
-                                  {formatTodoDeadline(todo.deadline)}
-                                </span>
-                              )}
-
-                              <button
-                                onClick={() => handleComplete(todo)}
-                                className={`relative w-5 h-5 rounded-full border flex items-center justify-center transition-colors duration-200 ${isCompleting ? 'border-accent bg-accent' : 'border-text-primary/20 hover:border-accent hover:bg-accent/10'}`}
-                                type="button"
-                              >
-                                {isCompleting && (
-                                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-3 h-3">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                  </svg>
-                                )}
-                              </button>
-
-                              <button
-                                onClick={() => deleteTodo(todo.id)}
-                                className="opacity-0 group-hover:opacity-100 transition-opacity text-text-secondary/20 hover:text-red-400/80 p-0.5"
-                                type="button"
-                                title="Delete task"
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                                </svg>
-                              </button>
-                            </div>
-                          </motion.div>
-                        );
-                      })}
+                      {activeTodos.map(todo => (
+                        <TaskChip
+                          key={todo.id}
+                          todo={todo}
+                          onComplete={handleComplete}
+                          onDelete={deleteTodo}
+                          onUpdateTitle={updateTodoTitle}
+                          onMoveTo={moveTodoToDate}
+                          isCompleting={completingIds.includes(todo.id)}
+                        />
+                      ))}
                     </AnimatePresence>
                   </div>
 
                   {/* Done/Trail section */}
                   {doneTodos.length > 0 && (
-                    <div className="mt-6">
-                      <div className="done-trail-divider">
-                        <span className="font-semibold text-[10px] tracking-wider">
-                          {activeTodos.length === 0 ? 'All done ✦' : `${doneTodos.length} Completed`}
-                        </span>
-                        <div className="h-[1px] bg-text-primary/10 flex-grow" />
-                      </div>
-
-                      <div className="space-y-2 opacity-50">
-                        {doneTodos.map(todo => {
-                          const sub = state.subjects.find(s => s.id === todo.subject_id);
-                          const accentColor = sub?.accentColor || 'var(--text-muted)';
-
-                          return (
-                            <div
-                              key={todo.id}
-                              className="task-chip scratched"
-                              style={{ borderLeft: `3px solid ${hexToRgba(accentColor, 0.4)}` }}
-                            >
-                              <div
-                                className="task-chip-dot opacity-40"
-                                style={{ backgroundColor: accentColor }}
-                              />
-                              <div className="flex-grow min-w-0 flex flex-col">
-                                <span className="task-title font-sans text-[15px] truncate flex items-center gap-1.5">
-                                  {todo.title}
-                                  {todo.recurrence_days && todo.recurrence_days.length > 0 && (
-                                    <span className="text-[14px] text-accent font-bold" title="Recurring task">↻</span>
-                                  )}
-                                </span>
-                                {todo.note && (
-                                  <span className="text-[12px] text-text-secondary/40 truncate">
-                                    {todo.note}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 flex-shrink-0">
-                                <button
-                                  onClick={() => {
-                                    if (todo.recurrence_days && todo.recurrence_days.length > 0) {
-                                      toggleTodoScratched(todo.id);
-                                    } else {
-                                      toggleTodoCompleted(todo.id);
-                                    }
-                                  }}
-                                  className="w-5 h-5 rounded-full border border-accent flex items-center justify-center bg-accent/10"
-                                  type="button"
-                                >
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                    <polyline points="20 6 9 17 4 12"></polyline>
-                                  </svg>
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
+                    <CompletedTrail
+                      doneTodos={doneTodos}
+                      onUncomplete={handleUncomplete}
+                      label={activeTodos.length === 0 ? 'All done ✦' : `${doneTodos.length} Completed`}
+                    />
                   )}
                 </div>
               </div>
@@ -596,17 +340,15 @@ export default function TodoScreen({ isActive }) {
             setActiveDateStr={setActiveDateStr}
             state={state}
             isAdding={isAdding} setIsAdding={setIsAdding}
-            taskTitle={taskTitle} setTaskTitle={setTaskTitle}
-            taskNote={taskNote} setTaskNote={setTaskNote}
-            taskSubjectId={taskSubjectId} setTaskSubjectId={setTaskSubjectId}
-            taskRecurrence={taskRecurrence} setTaskRecurrence={setTaskRecurrence}
-            taskDeadline={taskDeadline} setTaskDeadline={setTaskDeadline}
-            taskPriority={taskPriority} setTaskPriority={setTaskPriority}
-            handleAddTask={handleAddTask}
             completingIds={completingIds}
             handleComplete={handleComplete}
-            deleteTodo={deleteTodo}
+            handleAddTask={handleAddTask}
             isJumpNavigating={isJumpNavigating}
+            deleteTodo={deleteTodo}
+            updateTodoTitle={updateTodoTitle}
+            moveTodoToDate={moveTodoToDate}
+            toggleTodoCompleted={toggleTodoCompleted}
+            toggleTodoScratched={toggleTodoScratched}
           />
         )}
       </div>

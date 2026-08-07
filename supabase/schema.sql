@@ -25,13 +25,29 @@ create table if not exists public.sessions (
   is_discarded boolean not null default false
 );
 
+create table if not exists public.todos (
+  id uuid primary key,
+  user_id uuid not null references auth.users (id) on delete cascade,
+  title text not null,
+  is_completed boolean not null default false,
+  is_scratched_today boolean not null default false,
+  recurrence_days integer[],
+  scheduled_date date,
+  display_order integer not null default 0,
+  created_at timestamptz not null default now(),
+  note text,
+  deadline timestamptz
+);
+
 create index if not exists idx_subjects_user_id on public.subjects (user_id);
 create index if not exists idx_sessions_subject_id on public.sessions (subject_id);
 create index if not exists idx_sessions_start_time on public.sessions (start_time desc);
+create index if not exists idx_todos_user_id on public.todos (user_id);
 
 alter table public.profiles enable row level security;
 alter table public.subjects enable row level security;
 alter table public.sessions enable row level security;
+alter table public.todos enable row level security;
 
 drop policy if exists "profiles_select_own" on public.profiles;
 create policy "profiles_select_own"
@@ -154,3 +170,32 @@ using (
       and s.user_id = auth.uid()
   )
 );
+
+drop policy if exists "todos_select_own" on public.todos;
+create policy "todos_select_own"
+on public.todos
+for select
+to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists "todos_insert_own" on public.todos;
+create policy "todos_insert_own"
+on public.todos
+for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "todos_update_own" on public.todos;
+create policy "todos_update_own"
+on public.todos
+for update
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "todos_delete_own" on public.todos;
+create policy "todos_delete_own"
+on public.todos
+for delete
+to authenticated
+using (auth.uid() = user_id);

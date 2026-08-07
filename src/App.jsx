@@ -306,7 +306,6 @@ function AppContent() {
         {currentModal === 'pomodoro' && (
           <PomodoroConfigModal
             key="pomodoro"
-            subjectId={activeModal.subjectId}
             accentColor={activeAccentColor}
             onClose={() => setActiveModal(null)}
             onStart={(config) => {

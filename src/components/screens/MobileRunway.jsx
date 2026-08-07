@@ -1,34 +1,65 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { motion, useMotionValue, useTransform, useAnimation, AnimatePresence } from 'framer-motion';
-import { getDateForOffset, getTodosForDate, hexToRgba, formatTodoDeadline, formatRecurrence } from '../../utils/todoHelpers';
+import { getDateForOffset, getTodosForDate } from '../../utils/todoHelpers';
+import TaskChip from '../todo/TaskChip';
+import TaskForm from '../todo/TaskForm';
+import CompletedTrail from '../todo/CompletedTrail';
 
 export default function MobileRunway({
   activeDateStr,
   setActiveDateStr,
   state,
-  isAdding, setIsAdding,
-  taskTitle, setTaskTitle,
-  taskNote, setTaskNote,
-  taskSubjectId, setTaskSubjectId,
-  taskRecurrence, setTaskRecurrence,
-  taskDeadline, setTaskDeadline,
-  taskPriority, setTaskPriority,
-  handleAddTask,
+  isAdding,
+  setIsAdding,
   completingIds,
   handleComplete,
-  deleteTodo,
+  handleAddTask,
   isJumpNavigating,
+  deleteTodo,
+  updateTodoTitle,
+  moveTodoToDate,
+  toggleTodoCompleted,
+  toggleTodoScratched,
   className
 }) {
   const x = useMotionValue(0);
   const controls = useAnimation();
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 400);
+  const [pendingDelete, setPendingDelete] = useState(null);
+  const pendingDeleteTimer = useRef(null);
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
   }, []);
+
+  useEffect(() => () => {
+    if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
+  }, []);
+
+  const handleDeleteRequest = (id) => {
+    const todo = state.todos.find(t => t.id === id);
+    if (!todo) return;
+    if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
+    pendingDeleteTimer.current = setTimeout(() => {
+      deleteTodo(id);
+      setPendingDelete(cur => cur?.id === id ? null : cur);
+    }, 4000);
+    setPendingDelete({ id, todo });
+  };
+
+  const handleUndoDelete = () => {
+    if (pendingDeleteTimer.current) clearTimeout(pendingDeleteTimer.current);
+    pendingDeleteTimer.current = null;
+    setPendingDelete(null);
+  };
+
+  const handleUncomplete = (todoId) => {
+    const todo = state.todos.find(t => t.id === todoId);
+    if (todo?.recurrence_days?.length > 0) toggleTodoScratched(todoId);
+    else toggleTodoCompleted(todoId);
+  };
 
   const cardWidth = windowWidth * 0.72; // 72vw per card (leaves edge peek)
   const gap = 12;
@@ -125,7 +156,7 @@ export default function MobileRunway({
           const days = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
           const isActualToday = activeDateStr === actualTodayStr;
           const dayTodos = getTodosForDate(state.todos, activeDateStr);
-          const activeTodos = dayTodos.filter(t => t.recurrence_days?.length ? !t.is_scratched_today : !t.is_completed);
+          const activeTodos = dayTodos.filter(t => t.recurrence_days?.length ? !t.is_scratched_today : !t.is_completed).filter(t => t.id !== pendingDelete?.id);
 
           return (
             <div className="flex flex-col items-center">
@@ -156,8 +187,8 @@ export default function MobileRunway({
           const dateStr = getDateForOffset(offset, new Date(actualTodayStr + 'T12:00:00'));
           const dayTodos = getTodosForDate(state.todos, dateStr);
 
-          const activeTodos = dayTodos.filter(t => t.recurrence_days?.length ? !t.is_scratched_today : !t.is_completed);
-          const doneTodos = dayTodos.filter(t => t.recurrence_days?.length ? t.is_scratched_today : t.is_completed);
+          const activeTodos = dayTodos.filter(t => t.recurrence_days?.length ? !t.is_scratched_today : !t.is_completed).filter(t => t.id !== pendingDelete?.id);
+          const doneTodos = dayTodos.filter(t => t.recurrence_days?.length ? t.is_scratched_today : t.is_completed).filter(t => t.id !== pendingDelete?.id);
 
           const isActive = offset === activeIndex;
           const cardOpacity = offset === activeIndex - 1 ? opacityLeft : offset === activeIndex ? opacityCenter : opacityRight;
@@ -186,65 +217,7 @@ export default function MobileRunway({
                       <span className="text-[12px] font-light leading-none mb-0.5 opacity-60">+</span> What needs doing?
                     </button>
                   ) : (
-                    <motion.form
-                      initial={{ height: 0, opacity: 0 }}
-                      animate={{ height: 'auto', opacity: 1 }}
-                      transition={{ duration: 0.3 }}
-                      className="p-2.5 rounded-lg border border-text-primary/10 bg-text-primary/[0.02] flex flex-col gap-2 overflow-hidden"
-                      onSubmit={(e) => { handleAddTask(e); e.target.blur(); }}
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <input
-                        type="text"
-                        placeholder="What needs to be done?"
-                        value={taskTitle}
-                        onChange={(e) => setTaskTitle(e.target.value)}
-                        className="bg-transparent font-sans text-[13px] font-medium placeholder-text-secondary/30 focus:outline-none w-full"
-                        autoFocus
-                        required
-                      />
-
-                      <AnimatePresence>
-                        {taskTitle.length > 0 && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: 'auto' }}
-                            exit={{ opacity: 0, height: 0 }}
-                            transition={{ duration: 0.25 }}
-                            className="flex flex-col gap-2 overflow-hidden"
-                          >
-                            <input
-                              type="text"
-                              placeholder="Add a note..."
-                              value={taskNote}
-                              onChange={(e) => setTaskNote(e.target.value)}
-                              className="bg-transparent text-[11px] text-text-secondary/60 placeholder-text-secondary/20 focus:outline-none w-full mt-0.5"
-                            />
-
-                            <div className="flex flex-wrap gap-x-3 gap-y-2 items-center pt-2 border-t border-text-primary/5">
-                              <div className="flex items-center gap-1 overflow-x-auto scrollbar-none flex-1 min-w-0 pr-2">
-                                <span className="text-[9px] text-text-secondary/40 font-semibold uppercase tracking-widest mr-1 shrink-0">Subj</span>
-                                <button type="button" onClick={() => setTaskSubjectId('')} className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-full border transition-all ${!taskSubjectId ? 'border-text-primary/30 bg-text-primary/5 text-text-primary' : 'border-transparent text-text-secondary/50 hover:bg-text-primary/5 hover:text-text-primary'}`}>
-                                  <div className="w-2 h-2 rounded-full bg-text-primary/20" />
-                                  <span className="text-[10px] font-medium">None</span>
-                                </button>
-                                {state.subjects.map(s => (
-                                  <button key={s.id} type="button" onClick={() => setTaskSubjectId(s.id)} className={`shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded-full border transition-all ${taskSubjectId === s.id ? 'border-text-primary/30 bg-text-primary/5 text-text-primary' : 'border-transparent text-text-secondary/50 hover:bg-text-primary/5 hover:text-text-primary'}`}>
-                                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: s.accentColor }} />
-                                    <span className="text-[10px] font-medium">{s.name}</span>
-                                  </button>
-                                ))}
-                              </div>
-                              {/* Priority Picker removed */}
-                            </div>
-                            <div className="flex justify-end gap-1.5 pt-1.5 mt-1">
-                              <button onClick={() => setIsAdding(false)} className="px-2 py-1 rounded text-[11px] font-medium text-text-secondary/50" type="button">Cancel</button>
-                              <button type="submit" className="px-3 py-1 rounded text-[11px] bg-text-primary text-background-main font-semibold">Add Task</button>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.form>
+                    <TaskForm onSubmit={handleAddTask} onCancel={() => setIsAdding(false)} activeDateStr={dateStr} />
                   )}
                 </div>
               )}
@@ -252,44 +225,31 @@ export default function MobileRunway({
               {/* Tasks List */}
               <div className="space-y-1.5 pointer-events-auto">
                 <AnimatePresence initial={false}>
-                  {activeTodos.map(todo => {
-                    const sub = state.subjects.find(s => s.id === todo.subject_id);
-                    const accentColor = sub?.accentColor || 'var(--border-glass-bright)';
-                    const isCompleting = completingIds.includes(todo.id);
-                    const borderColor = hexToRgba(accentColor, 0.75);
-
-                    return (
-                      <motion.div
-                        key={todo.id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className={`task-chip group !min-h-[32px] !py-1.5 !px-2.5 !mb-1 !rounded-md !gap-2 bg-text-primary/[0.03] border border-text-primary/[0.08] ${isCompleting ? 'opacity-50 pointer-events-none' : ''}`}
-                        style={{ borderLeft: `4px solid ${borderColor}` }}
-                      >
-                        <div className="task-chip-dot" style={{ backgroundColor: accentColor }} />
-                        <div className="flex-grow min-w-0 flex flex-col opacity-90">
-                          <span className="task-title font-sans text-[12px] font-medium truncate">{todo.title}</span>
-                          {todo.note && <span className="text-[10px] text-text-secondary/50 truncate">{todo.note}</span>}
-                        </div>
-                        <div className="flex items-center gap-2 flex-shrink-0">
-                          {todo.recurrence_days?.length > 0 && <span className="text-[9px] opacity-40 font-mono">↻ {formatRecurrence(todo.recurrence_days)}</span>}
-                          {todo.deadline && !todo.recurrence_days && <span className="text-[9px] opacity-40 font-mono">{formatTodoDeadline(todo.deadline)}</span>}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleComplete(todo); }}
-                            className={`relative w-4 h-4 rounded-full border flex items-center justify-center transition-colors duration-200 ${isCompleting ? 'border-accent bg-accent' : 'border-text-primary/20'}`}
-                            type="button"
-                          >
-                            {isCompleting && <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="w-2.5 h-2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>}
-                          </button>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
+                  {activeTodos.map(todo => (
+                    <TaskChip
+                      key={todo.id}
+                      todo={todo}
+                      onComplete={handleComplete}
+                      onDelete={handleDeleteRequest}
+                      onUpdateTitle={updateTodoTitle}
+                      onMoveTo={moveTodoToDate}
+                      isCompleting={completingIds.includes(todo.id)}
+                      isMobile
+                    />
+                  ))}
                 </AnimatePresence>
               </div>
 
-              {activeTodos.length === 0 && !isAdding && (
+              {/* Completed Trail */}
+              {doneTodos.length > 0 && (
+                <CompletedTrail
+                  doneTodos={doneTodos}
+                  onUncomplete={handleUncomplete}
+                  label={activeTodos.length === 0 ? 'All done ✦' : `${doneTodos.length} Completed`}
+                />
+              )}
+
+              {activeTodos.length === 0 && !isAdding && !pendingDelete && (
                 <div className="flex flex-col items-center justify-center py-6 text-center opacity-40">
                   <span className="font-serif italic text-[13px]">Nothing for this day.</span>
                 </div>
@@ -298,6 +258,21 @@ export default function MobileRunway({
           );
         })}
       </motion.div>
+
+      {/* Undo Delete Toast */}
+      <AnimatePresence>
+        {pendingDelete && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 px-4 py-2.5 rounded-full bg-background-glass border border-text-primary/10 shadow-lg text-[12px]"
+          >
+            <span className="text-text-primary/80">Task deleted</span>
+            <button className="text-accent font-semibold" onClick={handleUndoDelete}>Undo</button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
