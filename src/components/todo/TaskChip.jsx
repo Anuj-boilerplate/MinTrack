@@ -1,12 +1,18 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { formatRecurrence, formatTodoDeadline, getDateForOffset } from '../../utils/todoHelpers';
+import { formatRecurrence, formatTodoDeadline, formatCarriedFrom, getDaysCarried, getDateForOffset } from '../../utils/todoHelpers';
 
-export default function TaskChip({ todo, onComplete, onDelete, onUpdateTitle, onMoveTo, isCompleting, isMobile }) {
+export default function TaskChip({ todo, onComplete, onDelete, onUpdateTitle, onMoveTo, isCompleting, isMobile, termEndStr }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(todo.title);
   const [moveOpen, setMoveOpen] = useState(false);
   const cancelledRef = useRef(false);
+
+  // Move-to bounds: deferring only goes forward (never today/past) and never beyond the term end
+  const moveMin = getDateForOffset(1);
+  const tomorrowStr = getDateForOffset(1);
+  const weekStr = getDateForOffset(7);
+  const withinTerm = dateStr => !termEndStr || dateStr <= termEndStr;
 
   const titleClass = `task-title font-sans text-[15px] truncate ${isMobile ? 'text-[12px] font-medium' : ''}`;
 
@@ -63,6 +69,11 @@ export default function TaskChip({ todo, onComplete, onDelete, onUpdateTitle, on
             {todo.title}
           </span>
         )}
+        {todo.original_date && todo.original_date !== todo.scheduled_date && (
+          <span className={`text-[10px] font-mono flex items-center gap-1 ${getDaysCarried(todo.original_date, todo.scheduled_date) >= 3 ? 'text-amber-400/70' : 'text-text-secondary/40'}`}>
+            ↩ {formatCarriedFrom(todo.original_date)}
+          </span>
+        )}
         {todo.note && (
           <span className={`text-[12px] text-text-secondary/50 truncate ${isMobile ? 'text-[10px]' : ''}`}>
             {todo.note}
@@ -100,18 +111,34 @@ export default function TaskChip({ todo, onComplete, onDelete, onUpdateTitle, on
 
             {moveOpen && (
               <span className="inline-flex items-center gap-1.5 bg-text-primary/5 border border-text-primary/10 rounded-md px-2 py-1" onClick={e => e.stopPropagation()}>
-                <button
-                  type="button"
-                  onClick={() => {
-                    onMoveTo(todo.id, getDateForOffset(1));
-                    setMoveOpen(false);
-                  }}
-                  className="text-[10px] text-text-secondary/70 hover:text-accent whitespace-nowrap m-0 p-0 border-none bg-transparent"
-                >
-                  Tomorrow
-                </button>
+                {withinTerm(tomorrowStr) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onMoveTo(todo.id, tomorrowStr);
+                      setMoveOpen(false);
+                    }}
+                    className="text-[10px] text-text-secondary/70 hover:text-accent whitespace-nowrap m-0 p-0 border-none bg-transparent"
+                  >
+                    Tomorrow
+                  </button>
+                )}
+                {withinTerm(weekStr) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onMoveTo(todo.id, weekStr);
+                      setMoveOpen(false);
+                    }}
+                    className="text-[10px] text-text-secondary/70 hover:text-accent whitespace-nowrap m-0 p-0 border-none bg-transparent"
+                  >
+                    +1 Week
+                  </button>
+                )}
                 <input
                   type="date"
+                  min={moveMin}
+                  max={termEndStr || undefined}
                   onClick={e => e.stopPropagation()}
                   onChange={e => {
                     if (e.target.value) {

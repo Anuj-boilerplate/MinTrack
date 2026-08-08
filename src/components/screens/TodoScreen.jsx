@@ -313,6 +313,7 @@ export default function TodoScreen({ isActive }) {
                           onUpdateTitle={updateTodoTitle}
                           onMoveTo={moveTodoToDate}
                           isCompleting={completingIds.includes(todo.id)}
+                          termEndStr={state.term?.endDate?.split('T')[0]}
                         />
                       ))}
                     </AnimatePresence>

@@ -75,7 +75,8 @@ async function processActionQueue() {
             display_order: action.payload.display_order ?? 0,
             created_at: action.payload.created_at,
             note: action.payload.note ?? null,
-            deadline: action.payload.deadline ?? null
+            deadline: action.payload.deadline ?? null,
+            original_date: action.payload.original_date ?? null
           }));
           break;
         case 'UPDATE_TODO': {
@@ -89,6 +90,7 @@ async function processActionQueue() {
           if (p.display_order !== undefined)      updatePayload.display_order = p.display_order;
           if (p.note !== undefined)              updatePayload.note = p.note;
           if (p.deadline !== undefined)          updatePayload.deadline = p.deadline;
+          if (p.original_date !== undefined)     updatePayload.original_date = p.original_date;
           ({ error } = await supabase.from('todos').update(updatePayload).eq('id', action.todoId));
           break;
         }

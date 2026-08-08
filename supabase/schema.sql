@@ -36,8 +36,12 @@ create table if not exists public.todos (
   display_order integer not null default 0,
   created_at timestamptz not null default now(),
   note text,
-  deadline timestamptz
+  deadline timestamptz,
+  original_date date
 );
+
+-- Migration for existing databases: stores the first scheduled date of an auto-forwarded task
+alter table public.todos add column if not exists original_date date;
 
 create index if not exists idx_subjects_user_id on public.subjects (user_id);
 create index if not exists idx_sessions_subject_id on public.sessions (subject_id);

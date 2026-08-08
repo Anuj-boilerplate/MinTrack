@@ -34,6 +34,32 @@ export function getDateForOffset(offset, pivot = new Date()) {
   return d.toISOString().split('T')[0];
 }
 
+// Normalizes any date-ish value (ISO timestamp or YYYY-MM-DD) to a YYYY-MM-DD string
+export function datePart(value) {
+  if (!value) return null;
+  const str = String(value);
+  return str.includes('T') ? str.split('T')[0] : str;
+}
+
+const MONTHS_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+// Formats the origin date of an auto-forwarded task, e.g. "from Aug 5"
+export function formatCarriedFrom(originalDate) {
+  if (!originalDate) return '';
+  const date = new Date(originalDate + 'T12:00:00');
+  if (isNaN(date.getTime())) return '';
+  return `from ${MONTHS_SHORT[date.getMonth()]} ${date.getDate()}`;
+}
+
+// Number of days a task has been carried forward from its original date
+export function getDaysCarried(originalDate, currentDate) {
+  if (!originalDate || !currentDate) return 0;
+  const orig = new Date(originalDate + 'T12:00:00');
+  const curr = new Date(currentDate + 'T12:00:00');
+  if (isNaN(orig.getTime()) || isNaN(curr.getTime())) return 0;
+  return Math.round((curr - orig) / (1000 * 60 * 60 * 24));
+}
+
 export function getTodosForDate(todos, dateStr) {
   const dow = new Date(dateStr + 'T12:00:00').getDay(); // 0=Sun, 6=Sat
   return todos.filter(todo => {
@@ -42,4 +68,44 @@ export function getTodosForDate(todos, dateStr) {
     }
     return todo.scheduled_date === dateStr;
   });
+}
+
+// Tidal sweep: auto-forward incomplete one-off tasks scheduled before today.
+// The first forward stamps original_date with the task's first scheduled date;
+// subsequent forwards preserve it. Returns the updated todos plus the forwards
+// that need to be synced as UPDATE_TODO actions.
+export function forwardOverdueTodos(todos, todayStr) {
+  const forwarded = [];
+  const next = todos.map(todo => {
+    const scheduled = datePart(todo.scheduled_date);
+    if (
+      scheduled &&
+      scheduled < todayStr &&
+      !todo.is_completed &&
+      (!todo.recurrence_days || todo.recurrence_days.length === 0)
+    ) {
+      forwarded.push({ id: todo.id, original_date: todo.original_date || scheduled });
+      return {
+        ...todo,
+        original_date: todo.original_date || scheduled,
+        scheduled_date: todayStr
+      };
+    }
+    return todo;
+  });
+  return { todos: next, forwarded };
+}
+
+// Ghost cleanup: drop one-off tasks scheduled beyond the term end date.
+// Returns the surviving todos plus the ids of dropped tasks to sync as DELETE_TODO actions.
+export function dropGhostTodos(todos, termEnd) {
+  if (!termEnd) return { todos, ghostRemoved: [] };
+  const ghostRemoved = [];
+  const next = todos.filter(todo => {
+    if (!todo.scheduled_date || todo.recurrence_days?.length > 0) return true;
+    const withinTerm = datePart(todo.scheduled_date) <= termEnd;
+    if (!withinTerm) ghostRemoved.push(todo.id);
+    return withinTerm;
+  });
+  return { todos: next, ghostRemoved };
 }

@@ -1,8 +1,9 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { getStartOfDay, getAccentColor, recalculateSubjectStats, calculateDailyTarget } from '../utils';
+import { getStartOfDay, getAccentColor, recalculateSubjectStats, calculateDailyTarget, toLocalDateString } from '../utils';
 import { addActionToQueue, processSyncQueue } from '../lib/syncQueue';
+import { datePart, forwardOverdueTodos, dropGhostTodos } from '../utils/todoHelpers';
 
 // Debounced sync trigger for todo mutations — batches rapid actions into one flush
 let _todoSyncTimer = null;
@@ -46,7 +47,8 @@ function normalizeTodo(todo) {
     display_order: todo.display_order ?? 0,
     created_at: todo.created_at ? new Date(todo.created_at).toISOString() : new Date().toISOString(),
     note: todo.note || '',
-    deadline: todo.deadline || null
+    deadline: todo.deadline || null,
+    original_date: todo.original_date || null
   };
 }
 
@@ -129,6 +131,8 @@ export const StateProvider = ({ children, session }) => {
   }, []);
   const pendingSaveStateRef = useRef(null);
   const saveTimeoutRef = useRef(null);
+  // Maintenance mutations (tidal forwards + ghost deletes) captured inside setState, flushed by an effect
+  const pendingMaintenanceRef = useRef(null);
 
   // Debounced saveState helper
   const saveStateDebounced = useCallback((newState) => {
@@ -179,14 +183,10 @@ export const StateProvider = ({ children, session }) => {
       // Simple Daily Reset Check for Todos and last_updated_date
       const lastUpdate = getStartOfDay(new Date(patchedState.last_updated_date));
       const today = getStartOfDay();
+      const todayStr = toLocalDateString(today);
       const isNewDay = lastUpdate.getTime() < today.getTime();
 
       if (isNewDay) {
-        patchedState.todos.forEach(todo => {
-          if (todo.is_scratched_today) {
-            todo.is_scratched_today = false;
-          }
-        });
         patchedState.last_updated_date = today.toISOString();
       }
 
@@ -264,7 +264,8 @@ export const StateProvider = ({ children, session }) => {
               display_order: localTodo.id ? (localTodo.display_order ?? dbTodo.display_order ?? 0) : (dbTodo.display_order ?? 0),
               created_at: dbTodo.created_at ? new Date(dbTodo.created_at).toISOString() : new Date().toISOString(),
               note: localTodo.note ?? dbTodo.note ?? '',
-              deadline: localTodo.deadline ?? dbTodo.deadline ?? null
+              deadline: localTodo.deadline ?? dbTodo.deadline ?? null,
+              original_date: localTodo.id ? (localTodo.original_date ?? dbTodo.original_date ?? null) : (dbTodo.original_date ?? null)
             };
           });
         // Also keep any local-only todos not yet in DB (queued inserts)
@@ -283,14 +284,46 @@ export const StateProvider = ({ children, session }) => {
           display_order: todo.display_order,
           created_at: todo.created_at,
           note: todo.note,
-          deadline: todo.deadline
+          deadline: todo.deadline,
+          original_date: todo.original_date
         }));
         await supabase.from('todos').upsert(toInsert);
       }
 
+      // ── New-day maintenance: reset scratch state and auto-forward overdue one-off tasks ──
+      let forwardedTodos = [];
+      if (isNewDay) {
+        patchedState.todos = patchedState.todos.map(todo =>
+          todo.is_scratched_today ? { ...todo, is_scratched_today: false } : todo
+        );
+        const sweep = forwardOverdueTodos(patchedState.todos, todayStr);
+        patchedState.todos = sweep.todos;
+        forwardedTodos = sweep.forwarded;
+      }
+
+      // ── Boot-time ghost cleanup: drop one-off tasks scheduled beyond the term end ──
+      const cleanup = dropGhostTodos(patchedState.todos, datePart(patchedState.term?.endDate));
+      patchedState.todos = cleanup.todos;
+      const ghostTodos = cleanup.ghostRemoved;
+
       setState(patchedState);
       localStorage.setItem(STATE_KEY, JSON.stringify(patchedState));
       setLoading(false);
+
+      // Queue syncs for maintenance mutations (auto-forwards + ghost deletes)
+      for (const forwarded of forwardedTodos) {
+        await addActionToQueue({
+          type: 'UPDATE_TODO',
+          todoId: forwarded.id,
+          payload: { scheduled_date: todayStr, original_date: forwarded.original_date }
+        });
+      }
+      for (const id of ghostTodos) {
+        await addActionToQueue({ type: 'DELETE_TODO', todoId: id });
+      }
+      if (forwardedTodos.length > 0 || ghostTodos.length > 0) {
+        scheduleTodoSync();
+      }
     } catch (err) {
       console.error("Initialization failed", err);
     }
@@ -305,20 +338,32 @@ export const StateProvider = ({ children, session }) => {
     initState(session.user.id);
   }, [session, initState]);
 
-  // Periodic Daily Reset Check: runs every minute to silently clear hours and return uncompleted tasks to backlog
+  // Periodic Daily Reset Check: runs every minute to silently clear hours, return uncompleted tasks to backlog,
+  // auto-forward overdue one-off tasks, and drop one-off tasks scheduled beyond the term end.
   useEffect(() => {
     const checkDailyReset = () => {
       const today = getStartOfDay();
+      const todayStr = toLocalDateString(today);
       setState(prev => {
         if (!prev.last_updated_date) return prev;
         const lastUpdate = getStartOfDay(new Date(prev.last_updated_date));
         if (lastUpdate.getTime() < today.getTime()) {
-          const nextTodos = prev.todos.map(todo => {
-            if (todo.is_scratched_today) {
-              return { ...todo, is_scratched_today: false };
-            }
-            return todo;
-          });
+          const termEnd = datePart(prev.term?.endDate);
+
+          const resetTodos = prev.todos.map(todo =>
+            todo.is_scratched_today ? { ...todo, is_scratched_today: false } : todo
+          );
+          // Tidal: auto-forward incomplete one-off tasks from the past
+          const sweep = forwardOverdueTodos(resetTodos, todayStr);
+          // Ghost cleanup: remove one-off tasks beyond the term end
+          const cleanup = dropGhostTodos(sweep.todos, termEnd);
+
+          pendingMaintenanceRef.current = {
+            forwarded: sweep.forwarded,
+            ghostRemoved: cleanup.ghostRemoved,
+            todayStr
+          };
+
           // Snapshot daily targets at midnight for all subjects
           const nextSubjects = prev.subjects.map(s => ({
             ...s,
@@ -327,7 +372,7 @@ export const StateProvider = ({ children, session }) => {
           const nextState = {
             ...prev,
             subjects: nextSubjects,
-            todos: nextTodos,
+            todos: cleanup.todos,
             last_updated_date: today.toISOString()
           };
           localStorage.setItem(STATE_KEY, JSON.stringify(nextState));
@@ -339,6 +384,30 @@ export const StateProvider = ({ children, session }) => {
     const interval = setInterval(checkDailyReset, 60000);
     return () => clearInterval(interval);
   }, []);
+
+  // Flush maintenance syncs (tidal forwards + ghost deletes) captured by the daily reset.
+  // Runs after every render as a post-commit hook so the setState updater stays side-effect free.
+  useEffect(() => {
+    const pending = pendingMaintenanceRef.current;
+    if (!pending) return;
+    pendingMaintenanceRef.current = null;
+    const { forwarded, ghostRemoved, todayStr } = pending;
+    (async () => {
+      for (const item of forwarded) {
+        await addActionToQueue({
+          type: 'UPDATE_TODO',
+          todoId: item.id,
+          payload: { scheduled_date: todayStr, original_date: item.original_date }
+        });
+      }
+      for (const id of ghostRemoved) {
+        await addActionToQueue({ type: 'DELETE_TODO', todoId: id });
+      }
+      if (forwarded.length > 0 || ghostRemoved.length > 0) {
+        scheduleTodoSync();
+      }
+    })();
+  });
 
 
   // Wrapper to update state and save automatically
@@ -376,6 +445,13 @@ export const StateProvider = ({ children, session }) => {
     scheduledDate = null,
     recurrenceDays = null
   ) => {
+    // Guardrail: clamp the schedule date to the term end boundary
+    const termEnd = datePart(state.term?.endDate);
+    let targetDate = scheduledDate ? datePart(scheduledDate) : null;
+    if (targetDate && termEnd && targetDate > termEnd) {
+      targetDate = termEnd;
+    }
+
     const newId = crypto.randomUUID();
     const newTodo = {
       id: newId,
@@ -384,11 +460,12 @@ export const StateProvider = ({ children, session }) => {
       is_completed: false,
       is_scratched_today: false,
       recurrence_days: recurrenceDays,
-      scheduled_date: scheduledDate,
+      scheduled_date: targetDate,
       display_order: 0,
       created_at: new Date().toISOString(),
       note,
-      deadline
+      deadline,
+      original_date: null
     };
 
     updateState(prev => ({
@@ -411,13 +488,14 @@ export const StateProvider = ({ children, session }) => {
           display_order: newTodo.display_order,
           created_at: newTodo.created_at,
           note: newTodo.note,
-          deadline: newTodo.deadline
+          deadline: newTodo.deadline,
+          original_date: newTodo.original_date
         }
       });
       scheduleTodoSync();
     }
     return newId;
-  }, [userId, updateState]);
+  }, [userId, updateState, state.term]);
 
   const toggleTodoCompleted = useCallback(async (id) => {
     let updatedTodo = null;
@@ -466,11 +544,19 @@ export const StateProvider = ({ children, session }) => {
   }, [userId, updateState]);
 
   const moveTodoToDate = useCallback(async (id, newDate) => {
+    const target = datePart(newDate);
+    if (!target) return;
+    // Guardrail: never move outside the term boundaries
+    const termEnd = datePart(state.term?.endDate);
+    const termStart = datePart(state.term?.startDate);
+    if (termEnd && target > termEnd) return;
+    if (termStart && target < termStart) return;
+
     let updatedTodo = null;
     updateState(prev => {
       const todos = prev.todos.map(t => {
         if (t.id === id) {
-          updatedTodo = { ...t, scheduled_date: newDate };
+          updatedTodo = { ...t, scheduled_date: target };
           return updatedTodo;
         }
         return t;
@@ -482,11 +568,11 @@ export const StateProvider = ({ children, session }) => {
       await addActionToQueue({
         type: 'UPDATE_TODO',
         todoId: id,
-        payload: { scheduled_date: newDate }
+        payload: { scheduled_date: target }
       });
       scheduleTodoSync();
     }
-  }, [userId, updateState]);
+  }, [userId, updateState, state.term]);
 
   const updateTodoRecurrence = useCallback(async (id, recurrenceDays) => {
     let updatedTodo = null;

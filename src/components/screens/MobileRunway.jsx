@@ -235,6 +235,7 @@ export default function MobileRunway({
                       onMoveTo={moveTodoToDate}
                       isCompleting={completingIds.includes(todo.id)}
                       isMobile
+                      termEndStr={state.term?.endDate?.split('T')[0]}
                     />
                   ))}
                 </AnimatePresence>

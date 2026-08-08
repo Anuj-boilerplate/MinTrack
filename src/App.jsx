@@ -40,7 +40,7 @@ function scheduleSyncQueue() {
 
 // The inner app that has access to the StateContext
 function AppContent() {
-  const { state, updateState, loading, isTransitioning, transitionToTheme, onTransitionDone } = useStateContext();
+  const { state, updateState, loading, isTransitioning, transitionToTheme, onTransitionDone, toggleTodoCompleted, toggleTodoScratched } = useStateContext();
   const { userId } = useUserContext();
   const timer = useTimer(state, updateState);
 
@@ -74,14 +74,20 @@ function AppContent() {
       } : s)
     }));
 
+    const linkedTask = activeSession.taskId
+      ? state.todos.find(t => t.id === activeSession.taskId)
+      : null;
     setSessionReviewData({
       subjectId,
       subjectName: sub?.name || 'Unknown Subject',
       hours,
-      startTime: activeSession.startedAt || new Date(activeSession.startTime).toISOString()
+      startTime: activeSession.startedAt || new Date(activeSession.startTime).toISOString(),
+      taskId: linkedTask ? linkedTask.id : null,
+      taskTitle: linkedTask ? linkedTask.title : null,
+      taskIsRecurring: linkedTask?.recurrence_days?.length > 0 || false
     });
     setActiveModal({ type: 'sessionReview' });
-  }, [state.activeSession, state.subjects, timer, updateState]);
+  }, [state.activeSession, state.subjects, state.todos, timer, updateState]);
 
   useEffect(() => {
     const interval = setInterval(processSyncQueue, 60000);
@@ -322,6 +328,13 @@ function AppContent() {
             accentColor={activeAccentColor}
             onSave={handleSaveSession}
             onDiscard={handleDiscardSession}
+            onCompleteTask={(taskId, isRecurring) => {
+              if (isRecurring) {
+                toggleTodoScratched(taskId);
+              } else {
+                toggleTodoCompleted(taskId);
+              }
+            }}
           />
         )}
 
