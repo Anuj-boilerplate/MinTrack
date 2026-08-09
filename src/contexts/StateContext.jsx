@@ -543,37 +543,6 @@ export const StateProvider = ({ children, session }) => {
     }
   }, [userId, updateState]);
 
-  const moveTodoToDate = useCallback(async (id, newDate) => {
-    const target = datePart(newDate);
-    if (!target) return;
-    // Guardrail: never move outside the term boundaries
-    const termEnd = datePart(state.term?.endDate);
-    const termStart = datePart(state.term?.startDate);
-    if (termEnd && target > termEnd) return;
-    if (termStart && target < termStart) return;
-
-    let updatedTodo = null;
-    updateState(prev => {
-      const todos = prev.todos.map(t => {
-        if (t.id === id) {
-          updatedTodo = { ...t, scheduled_date: target };
-          return updatedTodo;
-        }
-        return t;
-      });
-      return { ...prev, todos };
-    });
-
-    if (userId && updatedTodo) {
-      await addActionToQueue({
-        type: 'UPDATE_TODO',
-        todoId: id,
-        payload: { scheduled_date: target }
-      });
-      scheduleTodoSync();
-    }
-  }, [userId, updateState, state.term]);
-
   const updateTodoRecurrence = useCallback(async (id, recurrenceDays) => {
     let updatedTodo = null;
     updateState(prev => {
@@ -668,7 +637,6 @@ export const StateProvider = ({ children, session }) => {
     addTodo,
     toggleTodoCompleted,
     toggleTodoScratched,
-    moveTodoToDate,
     updateTodoRecurrence,
     deleteTodo,
     updateTodoTitle,
@@ -678,7 +646,7 @@ export const StateProvider = ({ children, session }) => {
     isTransitioning,
     transitionToTheme,
     onTransitionDone
-  }), [state, mappedSubjects, updateState, loading, addTodo, toggleTodoCompleted, toggleTodoScratched, moveTodoToDate, updateTodoRecurrence, deleteTodo, updateTodoTitle, setSubjectAccentColor, theme, toggleTheme, isTransitioning, transitionToTheme, onTransitionDone]);
+  }), [state, mappedSubjects, updateState, loading, addTodo, toggleTodoCompleted, toggleTodoScratched, updateTodoRecurrence, deleteTodo, updateTodoTitle, setSubjectAccentColor, theme, toggleTheme, isTransitioning, transitionToTheme, onTransitionDone]);
 
   const userContextValue = useMemo(() => ({
     userId,

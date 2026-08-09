@@ -17,7 +17,6 @@ export default function MobileRunway({
   isJumpNavigating,
   deleteTodo,
   updateTodoTitle,
-  moveTodoToDate,
   toggleTodoCompleted,
   toggleTodoScratched,
   className
@@ -232,10 +231,8 @@ export default function MobileRunway({
                       onComplete={handleComplete}
                       onDelete={handleDeleteRequest}
                       onUpdateTitle={updateTodoTitle}
-                      onMoveTo={moveTodoToDate}
                       isCompleting={completingIds.includes(todo.id)}
                       isMobile
-                      termEndStr={state.term?.endDate?.split('T')[0]}
                     />
                   ))}
                 </AnimatePresence>

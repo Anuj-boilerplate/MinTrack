@@ -1,18 +1,11 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
-import { formatRecurrence, formatTodoDeadline, formatCarriedFrom, getDaysCarried, getDateForOffset } from '../../utils/todoHelpers';
+import { formatRecurrence, formatTodoDeadline, formatCarriedFrom, getDaysCarried } from '../../utils/todoHelpers';
 
-export default function TaskChip({ todo, onComplete, onDelete, onUpdateTitle, onMoveTo, isCompleting, isMobile, termEndStr }) {
+export default function TaskChip({ todo, onComplete, onDelete, onUpdateTitle, isCompleting, isMobile }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(todo.title);
-  const [moveOpen, setMoveOpen] = useState(false);
   const cancelledRef = useRef(false);
-
-  // Move-to bounds: deferring only goes forward (never today/past) and never beyond the term end
-  const moveMin = getDateForOffset(1);
-  const tomorrowStr = getDateForOffset(1);
-  const weekStr = getDateForOffset(7);
-  const withinTerm = dateStr => !termEndStr || dateStr <= termEndStr;
 
   const titleClass = `task-title font-sans text-[15px] truncate ${isMobile ? 'text-[12px] font-medium' : ''}`;
 
@@ -91,66 +84,6 @@ export default function TaskChip({ todo, onComplete, onDelete, onUpdateTitle, on
           <span className={`text-[11px] opacity-40 font-mono ${isMobile ? 'text-[9px]' : ''}`}>
             {formatTodoDeadline(todo.deadline)}
           </span>
-        )}
-
-        {!todo.recurrence_days?.length && (
-          <>
-            <button
-              type="button"
-              title="Move to another day"
-              onClick={e => {
-                e.stopPropagation();
-                setMoveOpen(o => !o);
-              }}
-              className={`p-0.5 text-text-secondary/40 hover:text-accent transition-all ${isMobile ? '' : 'opacity-0 group-hover:opacity-100'}`}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            </button>
-
-            {moveOpen && (
-              <span className="inline-flex items-center gap-1.5 bg-text-primary/5 border border-text-primary/10 rounded-md px-2 py-1" onClick={e => e.stopPropagation()}>
-                {withinTerm(tomorrowStr) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onMoveTo(todo.id, tomorrowStr);
-                      setMoveOpen(false);
-                    }}
-                    className="text-[10px] text-text-secondary/70 hover:text-accent whitespace-nowrap m-0 p-0 border-none bg-transparent"
-                  >
-                    Tomorrow
-                  </button>
-                )}
-                {withinTerm(weekStr) && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onMoveTo(todo.id, weekStr);
-                      setMoveOpen(false);
-                    }}
-                    className="text-[10px] text-text-secondary/70 hover:text-accent whitespace-nowrap m-0 p-0 border-none bg-transparent"
-                  >
-                    +1 Week
-                  </button>
-                )}
-                <input
-                  type="date"
-                  min={moveMin}
-                  max={termEndStr || undefined}
-                  onClick={e => e.stopPropagation()}
-                  onChange={e => {
-                    if (e.target.value) {
-                      onMoveTo(todo.id, e.target.value);
-                      setMoveOpen(false);
-                    }
-                  }}
-                  className="bg-text-primary/5 border border-text-primary/10 rounded px-1 py-0.5 text-[10px] text-text-secondary focus:outline-none"
-                />
-              </span>
-            )}
-          </>
         )}
 
         <button

@@ -15,8 +15,7 @@ export default function TodoScreen({ isActive }) {
     toggleTodoCompleted,
     toggleTodoScratched,
     deleteTodo,
-    updateTodoTitle,
-    moveTodoToDate
+    updateTodoTitle
   } = useStateContext();
 
   // Pivot date centering the 7-day runway window
@@ -311,9 +310,7 @@ export default function TodoScreen({ isActive }) {
                           onComplete={handleComplete}
                           onDelete={deleteTodo}
                           onUpdateTitle={updateTodoTitle}
-                          onMoveTo={moveTodoToDate}
                           isCompleting={completingIds.includes(todo.id)}
-                          termEndStr={state.term?.endDate?.split('T')[0]}
                         />
                       ))}
                     </AnimatePresence>
@@ -347,7 +344,6 @@ export default function TodoScreen({ isActive }) {
             isJumpNavigating={isJumpNavigating}
             deleteTodo={deleteTodo}
             updateTodoTitle={updateTodoTitle}
-            moveTodoToDate={moveTodoToDate}
             toggleTodoCompleted={toggleTodoCompleted}
             toggleTodoScratched={toggleTodoScratched}
           />
