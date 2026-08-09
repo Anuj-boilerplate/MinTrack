@@ -2,6 +2,20 @@
 
 export const CHANGELOG = [
   {
+    version: '2.4.0',
+    date: '2026-08-09',
+    changes: [
+      {
+        title: "Google Calendar Integration",
+        description: "Connect your Google Calendar from Settings to see your busy days as blue markers across the runway, browse events on each active day, and push task deadlines straight into your calendar with one tap."
+      },
+      {
+        title: "Sign in with Google",
+        description: "You can now sign in with Google instead of a magic link. If the email matches an existing account, your tasks and history carry over automatically."
+      }
+    ]
+  },
+  {
     version: '2.3.0',
     date: '2026-08-08',
     changes: [

@@ -54,3 +54,9 @@ Desktop.ini
 .netlify
 .vercel
 .firebase
+
+# Supabase CLI session metadata
+supabase/.temp/
+
+# Local opencode tooling config
+.opencode/

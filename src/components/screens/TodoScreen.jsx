@@ -7,6 +7,8 @@ import TaskChip from '../todo/TaskChip';
 import TaskForm from '../todo/TaskForm';
 import CompletedTrail from '../todo/CompletedTrail';
 import { getDateForOffset, getTodosForDate } from '../../utils/todoHelpers';
+import { formatEventTime } from '../../utils/calendarHelpers';
+import { useCalendar } from '../../contexts/CalendarContext';
 
 export default function TodoScreen({ isActive }) {
   const {
@@ -17,6 +19,8 @@ export default function TodoScreen({ isActive }) {
     deleteTodo,
     updateTodoTitle
   } = useStateContext();
+
+  const { isConnected, events: calendarEvents, fetchEventsForRange } = useCalendar();
 
   // Pivot date centering the 7-day runway window
   const [pivotDate, setPivotDate] = useState(new Date());
@@ -61,6 +65,14 @@ export default function TodoScreen({ isActive }) {
   // Task creation state
   const [isAdding, setIsAdding] = useState(false);
   const [completingIds, setCompletingIds] = useState([]);
+
+  // Fetch calendar events for the visible runway window
+  useEffect(() => {
+    if (!isConnected || !isActive) return;
+    const startStr = getDateForOffset(-2, pivotDate);
+    const endStr = getDateForOffset(4, pivotDate);
+    fetchEventsForRange(startStr, endStr);
+  }, [isConnected, isActive, pivotDate, fetchEventsForRange]);
 
   const handleComplete = (todo) => {
     setCompletingIds(prev => [...prev, todo.id]);
@@ -244,6 +256,24 @@ export default function TodoScreen({ isActive }) {
                     </div>
                   </div>
 
+                  {/* Calendar busy indicator */}
+                  {isConnected && calendarEvents[dateStr]?.length > 0 && (
+                    <div className="flex flex-col gap-0.5 w-full items-center mt-2 mb-1">
+                      {calendarEvents[dateStr].slice(0, 3).map((evt, i) => (
+                        <div
+                          key={i}
+                          className="w-3/4 h-[3px] rounded-full bg-blue-400/40"
+                          title={evt.summary}
+                        />
+                      ))}
+                      {calendarEvents[dateStr].length > 3 && (
+                        <span className="text-[8px] text-text-secondary/30">
+                          +{calendarEvents[dateStr].length - 3}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex flex-col gap-2.5 w-full items-center">
                     {activeTodos.slice(0, 5).map(todo => (
                       <div key={todo.id} className="w-2 h-2 rounded-full bg-text-primary/20" title={todo.title} />
@@ -269,6 +299,28 @@ export default function TodoScreen({ isActive }) {
                       </span>
                     </div>
                   </div>
+
+                  {/* Calendar events for active day */}
+                  {isConnected && calendarEvents[dateStr]?.length > 0 && (
+                    <div className="mb-4 px-1">
+                      <span className="text-[9px] font-semibold uppercase tracking-wider text-blue-400/50 mb-1.5 block">
+                        Calendar
+                      </span>
+                      <div className="flex flex-col gap-1">
+                        {calendarEvents[dateStr].map((evt, i) => (
+                          <div key={i} className="flex items-center gap-2 text-[11px] text-text-secondary/50">
+                            <div className="w-1.5 h-1.5 rounded-full bg-blue-400/60 flex-shrink-0" />
+                            <span className="truncate">{evt.summary}</span>
+                            {formatEventTime(evt) && (
+                              <span className="text-[9px] opacity-50 flex-shrink-0 font-mono">
+                                {formatEventTime(evt)}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* Inline task creation */}
                   <div className="mb-6">

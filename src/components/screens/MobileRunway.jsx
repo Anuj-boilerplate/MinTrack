@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, useMotionValue, useTransform, useAnimation, AnimatePresence } from 'framer-motion';
 import { getDateForOffset, getTodosForDate } from '../../utils/todoHelpers';
+import { formatEventTime } from '../../utils/calendarHelpers';
+import { useCalendar } from '../../contexts/CalendarContext';
 import TaskChip from '../todo/TaskChip';
 import TaskForm from '../todo/TaskForm';
 import CompletedTrail from '../todo/CompletedTrail';
@@ -26,6 +28,7 @@ export default function MobileRunway({
   const [windowWidth, setWindowWidth] = useState(typeof window !== 'undefined' ? window.innerWidth : 400);
   const [pendingDelete, setPendingDelete] = useState(null);
   const pendingDeleteTimer = useRef(null);
+  const { isConnected, events: calendarEvents } = useCalendar();
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -204,6 +207,30 @@ export default function MobileRunway({
               }}
               className="flex-shrink-0 flex flex-col bg-text-primary/[0.02] border border-text-primary/5 rounded-xl p-2.5 h-[calc(100vh-270px)] overflow-y-auto scrollbar-none touch-pan-y"
             >
+              {/* Calendar events for this day */}
+              {isConnected && calendarEvents[dateStr]?.length > 0 && (
+                <div className="mb-2 px-1">
+                  <div className="flex flex-col gap-1">
+                    {calendarEvents[dateStr].slice(0, 3).map((evt, i) => (
+                      <div key={i} className="flex items-center gap-1.5 text-[10px] text-text-secondary/50">
+                        <div className="w-1 h-1 rounded-full bg-blue-400/60 flex-shrink-0" />
+                        <span className="truncate flex-1">{evt.summary}</span>
+                        {formatEventTime(evt) && (
+                          <span className="text-[8px] opacity-50 flex-shrink-0 font-mono">
+                            {formatEventTime(evt)}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                    {calendarEvents[dateStr].length > 3 && (
+                      <span className="text-[8px] text-text-secondary/30">
+                        +{calendarEvents[dateStr].length - 3} more
+                      </span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Task Add Form (Hidden on past dates to prevent historical edits) */}
               {!isPastDate && (
                 <div className={`mb-3 ${isActive ? 'pointer-events-auto' : 'pointer-events-none'}`}>

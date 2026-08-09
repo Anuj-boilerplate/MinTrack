@@ -1,0 +1,4 @@
+project_id = "mintrack"
+
+[functions.calendar]
+verify_jwt = true

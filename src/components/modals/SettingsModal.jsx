@@ -1,10 +1,12 @@
 import { useStateContext, useUserContext } from '../../contexts/StateContext';
 import { addActionToQueue, processSyncQueue } from '../../lib/syncQueue';
+import { useCalendar } from '../../contexts/CalendarContext';
 import { motion } from 'framer-motion';
 
 export default function SettingsModal({ onClose }) {
   const { updateState } = useStateContext();
   const { logout, userId } = useUserContext();
+  const { isConnected, connectCalendar, disconnectCalendar } = useCalendar();
 
   const handleClearData = async () => {
     if (!confirm('Are you sure you want to completely erase all data? This cannot be undone!')) return;
@@ -69,6 +71,30 @@ export default function SettingsModal({ onClose }) {
             </svg>
             Clear All Data
           </button>
+
+          {/* Google Calendar Connection */}
+          <div className="pt-4 border-t border-text-primary/5">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.15em] text-text-secondary/40 mb-3">
+              Integrations
+            </span>
+            <button
+              type="button"
+              className={`w-full flex items-center justify-center gap-2 px-8 py-3 rounded-full text-sm font-medium transition-colors border ${
+                isConnected
+                  ? 'bg-[#1a2e1a] text-[#8fff8f] border-[#8fff8f]/20 hover:bg-[#223322]'
+                  : 'bg-text-primary/5 text-text-secondary/70 border-text-primary/10 hover:bg-text-primary/10'
+              }`}
+              onClick={isConnected ? disconnectCalendar : connectCalendar}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              {isConnected ? 'Google Calendar Connected ✓' : 'Connect Google Calendar'}
+            </button>
+          </div>
 
           <div className="mt-4 pt-4 border-t border-text-primary/5 flex justify-center">
             <button

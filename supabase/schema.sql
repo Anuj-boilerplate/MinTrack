@@ -203,3 +203,43 @@ on public.todos
 for delete
 to authenticated
 using (auth.uid() = user_id);
+
+-- Google Calendar OAuth tokens per user (refresh tokens never leave the server)
+create table if not exists public.google_tokens (
+  user_id uuid primary key references auth.users (id) on delete cascade,
+  refresh_token text not null,
+  access_token text,
+  token_expires_at timestamptz,
+  connected_at timestamptz not null default now()
+);
+
+alter table public.google_tokens enable row level security;
+
+drop policy if exists "google_tokens_select_own" on public.google_tokens;
+create policy "google_tokens_select_own"
+on public.google_tokens
+for select
+to authenticated
+using (auth.uid() = user_id);
+
+drop policy if exists "google_tokens_insert_own" on public.google_tokens;
+create policy "google_tokens_insert_own"
+on public.google_tokens
+for insert
+to authenticated
+with check (auth.uid() = user_id);
+
+drop policy if exists "google_tokens_update_own" on public.google_tokens;
+create policy "google_tokens_update_own"
+on public.google_tokens
+for update
+to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
+
+drop policy if exists "google_tokens_delete_own" on public.google_tokens;
+create policy "google_tokens_delete_own"
+on public.google_tokens
+for delete
+to authenticated
+using (auth.uid() = user_id);
