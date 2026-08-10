@@ -76,7 +76,8 @@ async function processActionQueue() {
             created_at: action.payload.created_at,
             note: action.payload.note ?? null,
             deadline: action.payload.deadline ?? null,
-            original_date: action.payload.original_date ?? null
+            original_date: action.payload.original_date ?? null,
+            google_event_id: action.payload.google_event_id ?? null
           }));
           break;
         case 'UPDATE_TODO': {
@@ -91,6 +92,7 @@ async function processActionQueue() {
           if (p.note !== undefined)              updatePayload.note = p.note;
           if (p.deadline !== undefined)          updatePayload.deadline = p.deadline;
           if (p.original_date !== undefined)     updatePayload.original_date = p.original_date;
+          if (p.google_event_id !== undefined)   updatePayload.google_event_id = p.google_event_id;
           ({ error } = await supabase.from('todos').update(updatePayload).eq('id', action.todoId));
           break;
         }

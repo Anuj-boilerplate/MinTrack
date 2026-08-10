@@ -20,7 +20,7 @@ export default function TodoScreen({ isActive }) {
     updateTodoTitle
   } = useStateContext();
 
-  const { isConnected, events: calendarEvents, fetchEventsForRange } = useCalendar();
+  const { isConnected, events: calendarEvents, registerWindow } = useCalendar();
 
   // Pivot date centering the 7-day runway window
   const [pivotDate, setPivotDate] = useState(new Date());
@@ -71,8 +71,8 @@ export default function TodoScreen({ isActive }) {
     if (!isConnected || !isActive) return;
     const startStr = getDateForOffset(-2, pivotDate);
     const endStr = getDateForOffset(4, pivotDate);
-    fetchEventsForRange(startStr, endStr);
-  }, [isConnected, isActive, pivotDate, fetchEventsForRange]);
+    registerWindow(startStr, endStr);
+  }, [isConnected, isActive, pivotDate, registerWindow]);
 
   const handleComplete = (todo) => {
     setCompletingIds(prev => [...prev, todo.id]);

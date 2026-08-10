@@ -2,6 +2,16 @@
 
 export const CHANGELOG = [
   {
+    version: '2.5.0',
+    date: '2026-08-09',
+    changes: [
+      {
+        title: "Two-Way Calendar Sync",
+        description: "Every scheduled task now appears in your Google Calendar instantly — edits, reschedules, and completions mirror automatically, and recurring tasks become recurring calendar events. Events you create natively in Google show up in the runway within 30 seconds. No more manual add buttons."
+      }
+    ]
+  },
+  {
     version: '2.4.0',
     date: '2026-08-09',
     changes: [

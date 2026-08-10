@@ -43,6 +43,9 @@ create table if not exists public.todos (
 -- Migration for existing databases: stores the first scheduled date of an auto-forwarded task
 alter table public.todos add column if not exists original_date date;
 
+-- Google Calendar sync: id of the mirrored calendar event, for update/delete mirrors
+alter table public.todos add column if not exists google_event_id text;
+
 create index if not exists idx_subjects_user_id on public.subjects (user_id);
 create index if not exists idx_sessions_subject_id on public.sessions (subject_id);
 create index if not exists idx_sessions_start_time on public.sessions (start_time desc);

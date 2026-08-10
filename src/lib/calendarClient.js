@@ -36,31 +36,25 @@ async function callCalendarFunction(action, params = {}) {
   return data;
 }
 
-// Cache events in memory for the current browser session
-const eventsCache = new Map(); // key: "YYYY-MM-DD_YYYY-MM-DD", value: { events, fetchedAt }
-const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
-export function clearCalendarEventsCache() {
-  eventsCache.clear();
-}
-
+// Unused in the current design (the sync engine fetches on its own cadence).
+// Kept out to avoid stale data — the 30s poll always fetches fresh.
 export async function getCalendarEvents(startDate, endDate) {
-  const cacheKey = `${startDate}_${endDate}`;
-  const cached = eventsCache.get(cacheKey);
-  if (cached && Date.now() - cached.fetchedAt < CACHE_TTL) {
-    return cached.events;
-  }
-
   const timeMin = new Date(startDate + 'T00:00:00').toISOString();
   const timeMax = new Date(endDate + 'T23:59:59').toISOString();
   const { events } = await callCalendarFunction('get-events', { timeMin, timeMax });
-
-  eventsCache.set(cacheKey, { events, fetchedAt: Date.now() });
   return events;
 }
 
-export async function createCalendarEvent(summary, date, description = '') {
-  return callCalendarFunction('create-event', { summary, date, description });
+export async function createCalendarEvent(params) {
+  return callCalendarFunction('create-event', params);
+}
+
+export async function updateCalendarEvent(params) {
+  return callCalendarFunction('update-event', params);
+}
+
+export async function deleteCalendarEvent(eventId) {
+  return callCalendarFunction('delete-event', { eventId });
 }
 
 export async function storeCalendarToken(code, redirectUri) {

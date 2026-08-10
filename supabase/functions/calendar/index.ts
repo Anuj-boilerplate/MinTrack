@@ -171,8 +171,24 @@ serve(async (req) => {
   }
 
   if (action === "create-event") {
-    const { summary, date, description } = params;
+    const { summary, date, description, recurrence, iCalUID } = params;
     if (!summary || !date) return json({ error: "Missing summary or date" }, 400);
+
+    const body = {
+      summary,
+      description: description || undefined,
+      start: { date },
+      // All-day events use exclusive end dates — one day covers a single day
+      end: { date: addDays(date, 1) },
+      reminders: { useDefault: true },
+    };
+
+    if (Array.isArray(recurrence) && recurrence.length > 0) {
+      body.recurrence = [buildWeeklyRrule(recurrence)];
+    }
+    if (iCalUID) {
+      body.iCalUID = iCalUID;
+    }
 
     const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
       method: "POST",
@@ -180,22 +196,92 @@ serve(async (req) => {
         Authorization: `Bearer ${token.accessToken}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        summary,
-        description: description || undefined,
-        start: { date },
-        end: { date },
-        reminders: { useDefault: true },
-      }),
+      body: JSON.stringify(body),
     });
     const data = await res.json();
 
     if (!res.ok) {
-      return json({ error: data.error?.message || "google request failed" }, 502);
+      return json({ error: data.error?.message || "Google Calendar request failed" }, 502);
     }
 
     return json({ eventId: data.id, link: data.htmlLink });
   }
 
+  if (action === "update-event") {
+    const { eventId, summary, date, description, recurrence } = params;
+    if (!eventId || !date) return json({ error: "Missing eventId or date" }, 400);
+
+    const body = {
+      summary: summary || undefined,
+      description: description || undefined,
+      start: { date },
+      end: { date: addDays(date, 1) },
+      reminders: { useDefault: true },
+    };
+    if (Array.isArray(recurrence) && recurrence.length > 0) {
+      body.recurrence = [buildWeeklyRrule(recurrence)];
+    } else {
+      body.recurrence = [];
+    }
+
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token.accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      }
+    );
+
+    if (res.status === 404) {
+      // The event was deleted natively in Google — heal by recreating it
+      return json({ missing: true });
+    }
+    const data = await res.json();
+    if (!res.ok) {
+      return json({ error: data.error?.message || "Google Calendar request failed" }, 502);
+    }
+
+    return json({ eventId: data.id, link: data.htmlLink });
+  }
+
+  if (action === "delete-event") {
+    const { eventId } = params;
+    if (!eventId) return json({ error: "Missing eventId" }, 400);
+
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
+      { method: "DELETE", headers: { Authorization: `Bearer ${token.accessToken}` } }
+    );
+
+    if (res.status === 404) {
+      // Already gone natively — treat as success
+      return json({ success: true });
+    }
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      return json({ error: data.error?.message || "Google Calendar request failed" }, 502);
+    }
+
+    return json({ success: true });
+  }
+
   return json({ error: "Unknown action" }, 400);
 });
+
+// Adds days to a YYYY-MM-DD date string (returns YYYY-MM-DD in the same calendar)
+function addDays(dateStr, days) {
+  const d = new Date(`${dateStr}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().split("T")[0];
+}
+
+// Maps MinTrack recurrence days (0=Sun … 6=Sat) to a weekly RRULE
+function buildWeeklyRrule(recurrence) {
+  const DAY_CODES = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+  const byDay = [...recurrence].sort((a, b) => a - b).map((d) => DAY_CODES[d]).join(",");
+  return `FREQ=WEEKLY;BYDAY=${byDay}`;
+}

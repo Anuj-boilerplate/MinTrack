@@ -1,15 +1,11 @@
 import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { formatRecurrence, formatTodoDeadline, formatCarriedFrom, getDaysCarried } from '../../utils/todoHelpers';
-import { useCalendar } from '../../contexts/CalendarContext';
-import { createCalendarEvent } from '../../lib/calendarClient';
 
 export default function TaskChip({ todo, onComplete, onDelete, onUpdateTitle, isCompleting, isMobile }) {
   const [isEditing, setIsEditing] = useState(false);
   const [draft, setDraft] = useState(todo.title);
-  const [addedToCalendar, setAddedToCalendar] = useState(false);
   const cancelledRef = useRef(false);
-  const { isConnected } = useCalendar();
 
   const titleClass = `task-title font-sans text-[15px] truncate ${isMobile ? 'text-[12px] font-medium' : ''}`;
 
@@ -85,38 +81,8 @@ export default function TaskChip({ todo, onComplete, onDelete, onUpdateTitle, is
           </span>
         )}
         {todo.deadline && !todo.recurrence_days?.length && (
-          <span className="flex items-center gap-1.5">
-            <span className={`text-[11px] opacity-40 font-mono ${isMobile ? 'text-[9px]' : ''}`}>
-              {formatTodoDeadline(todo.deadline)}
-            </span>
-            {isConnected && !addedToCalendar && (
-              <button
-                type="button"
-                title="Add to Google Calendar"
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  try {
-                    await createCalendarEvent(
-                      todo.title,
-                      todo.deadline.split('T')[0],
-                      todo.note || ''
-                    );
-                    setAddedToCalendar(true);
-                  } catch { /* silent fail */ }
-                }}
-                className={`p-0.5 text-text-secondary/30 hover:text-blue-400 transition-all ${isMobile ? '' : 'opacity-0 group-hover:opacity-100'}`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                  <line x1="16" y1="2" x2="16" y2="6" />
-                  <line x1="8" y1="2" x2="8" y2="6" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                </svg>
-              </button>
-            )}
-            {addedToCalendar && (
-              <span className="text-[9px] text-blue-400/50">✓</span>
-            )}
+          <span className={`text-[11px] opacity-40 font-mono ${isMobile ? 'text-[9px]' : ''}`}>
+            {formatTodoDeadline(todo.deadline)}
           </span>
         )}
 

@@ -48,7 +48,8 @@ function normalizeTodo(todo) {
     created_at: todo.created_at ? new Date(todo.created_at).toISOString() : new Date().toISOString(),
     note: todo.note || '',
     deadline: todo.deadline || null,
-    original_date: todo.original_date || null
+    original_date: todo.original_date || null,
+    google_event_id: todo.google_event_id || null
   };
 }
 
@@ -265,7 +266,8 @@ export const StateProvider = ({ children, session }) => {
               created_at: dbTodo.created_at ? new Date(dbTodo.created_at).toISOString() : new Date().toISOString(),
               note: localTodo.note ?? dbTodo.note ?? '',
               deadline: localTodo.deadline ?? dbTodo.deadline ?? null,
-              original_date: localTodo.id ? (localTodo.original_date ?? dbTodo.original_date ?? null) : (dbTodo.original_date ?? null)
+              original_date: localTodo.id ? (localTodo.original_date ?? dbTodo.original_date ?? null) : (dbTodo.original_date ?? null),
+              google_event_id: localTodo.id ? (localTodo.google_event_id ?? dbTodo.google_event_id ?? null) : (dbTodo.google_event_id ?? null)
             };
           });
         // Also keep any local-only todos not yet in DB (queued inserts)
@@ -285,7 +287,8 @@ export const StateProvider = ({ children, session }) => {
           created_at: todo.created_at,
           note: todo.note,
           deadline: todo.deadline,
-          original_date: todo.original_date
+          original_date: todo.original_date,
+          google_event_id: todo.google_event_id ?? null
         }));
         await supabase.from('todos').upsert(toInsert);
       }
@@ -465,7 +468,8 @@ export const StateProvider = ({ children, session }) => {
       created_at: new Date().toISOString(),
       note,
       deadline,
-      original_date: null
+      original_date: null,
+      google_event_id: null
     };
 
     updateState(prev => ({
@@ -489,7 +493,8 @@ export const StateProvider = ({ children, session }) => {
           created_at: newTodo.created_at,
           note: newTodo.note,
           deadline: newTodo.deadline,
-          original_date: newTodo.original_date
+          original_date: newTodo.original_date,
+          google_event_id: newTodo.google_event_id
         }
       });
       scheduleTodoSync();
