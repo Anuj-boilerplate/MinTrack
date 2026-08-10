@@ -31,7 +31,8 @@ async function callCalendarFunction(action, params = {}) {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new CalendarError(data.error || 'Calendar request failed', data.error || null);
+    const detail = data.detail ? ` — ${data.detail}` : '';
+    throw new CalendarError(`${data.error || 'Calendar request failed'}${detail}`, data.error || null);
   }
   return data;
 }

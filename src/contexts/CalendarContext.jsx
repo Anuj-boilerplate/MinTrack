@@ -32,6 +32,7 @@ export function CalendarProvider({ children }) {
 
   const [isConnected, setIsConnected] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
+  const [connectError, setConnectError] = useState(null);
   const [events, setEvents] = useState({}); // keyed by date string "YYYY-MM-DD" → event[]
 
   const windowRef = useRef(null); // { startDate, endDate } of the visible runway
@@ -54,6 +55,7 @@ export function CalendarProvider({ children }) {
 
   // Initiate Google OAuth consent flow
   const connectCalendar = useCallback(() => {
+    setConnectError(null);
     if (!GOOGLE_CLIENT_ID) {
       // Misconfiguration guard — surface the real problem instead of a cryptic Google page
       console.warn(
@@ -78,6 +80,7 @@ export function CalendarProvider({ children }) {
   const handleOAuthCallback = useCallback(async (code) => {
     await storeCalendarToken(code, redirectUri);
     setIsConnected(true);
+    setConnectError(null);
     trackedRef.current = buildTodoSnapshot([]);
     // Clean the URL so the code isn't left in the address bar
     window.history.replaceState({}, '', window.location.pathname);
@@ -90,9 +93,11 @@ export function CalendarProvider({ children }) {
     const state = params.get('state');
     if (code && state === 'calendar_connect') {
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      handleOAuthCallback(code).catch(() => {
-        // Consent failed or code exchange errored — remain disconnected
+      handleOAuthCallback(code).catch((err) => {
+        // Consent failed or code exchange errored — remain disconnected and say why
         setIsConnected(false);
+        console.error('MinTrack: Google Calendar connect failed', err);
+        setConnectError(err?.message || 'Connection failed. Check the console for details.');
       });
     }
   }, [handleOAuthCallback]);
@@ -265,17 +270,19 @@ export function CalendarProvider({ children }) {
     }
     trackedRef.current = new Map();
     setIsConnected(false);
+    setConnectError(null);
     setEvents({});
   }, []);
 
   const value = useMemo(() => ({
     isConnected,
     isChecking,
+    connectError,
     events,
     connectCalendar,
     disconnectCalendar,
     registerWindow,
-  }), [isConnected, isChecking, events, connectCalendar, disconnectCalendar, registerWindow]);
+  }), [isConnected, isChecking, connectError, events, connectCalendar, disconnectCalendar, registerWindow]);
 
   return (
     <CalendarContext.Provider value={value}>

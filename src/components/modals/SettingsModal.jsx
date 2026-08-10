@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 export default function SettingsModal({ onClose }) {
   const { updateState } = useStateContext();
   const { logout, userId } = useUserContext();
-  const { isConnected, connectCalendar, disconnectCalendar } = useCalendar();
+  const { isConnected, connectError, connectCalendar, disconnectCalendar } = useCalendar();
 
   const handleClearData = async () => {
     if (!confirm('Are you sure you want to completely erase all data? This cannot be undone!')) return;
@@ -94,6 +94,11 @@ export default function SettingsModal({ onClose }) {
               </svg>
               {isConnected ? 'Google Calendar Connected ✓' : 'Connect Google Calendar'}
             </button>
+            {connectError && (
+              <p className="mt-3 text-[11px] leading-relaxed text-[#ff8f8f] text-center">
+                {connectError}
+              </p>
+            )}
           </div>
 
           <div className="mt-4 pt-4 border-t border-text-primary/5 flex justify-center">

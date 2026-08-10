@@ -2,6 +2,16 @@
 
 export const CHANGELOG = [
   {
+    version: '2.5.1',
+    date: '2026-08-10',
+    changes: [
+      {
+        title: "Visible Google Calendar Connection Errors",
+        description: "If connecting your Google Calendar fails, the Settings panel now shows the exact reason — missing credentials, expired one-time codes, or auth problems — instead of silently doing nothing."
+      }
+    ]
+  },
+  {
     version: '2.5.0',
     date: '2026-08-09',
     changes: [
