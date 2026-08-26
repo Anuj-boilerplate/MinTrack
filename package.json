@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.1",
+    "chrono-node": "^2.10.1",
     "framer-motion": "^12.40.0",
     "localforage": "^1.10.0",
     "react": "^19.2.5",

@@ -114,9 +114,9 @@ export default function TodoScreen({ isActive }) {
     setTimeout(() => setIsJumpNavigating(false), 400);
   };
 
-  const handleAddTask = async (title, note, deadline, recurrenceDays) => {
+  const handleAddTask = async (title, note, deadline, recurrenceDays, targetDateOverride = null) => {
     if (!title.trim()) return;
-    const targetDate = recurrenceDays && recurrenceDays.length > 0 ? null : activeDateStr;
+    const targetDate = recurrenceDays && recurrenceDays.length > 0 ? null : (targetDateOverride || activeDateStr);
     await addTodo(title.trim(), note.trim(), deadline || null, targetDate, recurrenceDays && recurrenceDays.length > 0 ? recurrenceDays : null);
     setIsAdding(false);
   };

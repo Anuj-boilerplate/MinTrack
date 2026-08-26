@@ -1,24 +1,59 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useStateContext } from '../../contexts/StateContext';
+import { parseTaskInput } from '../../utils/nlpParser';
+import { parseDateAsLocal } from '../../utils';
 
 const DAY_LABELS = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
 
 export default function TaskForm({ onSubmit, onCancel, activeDateStr }) {
+  const { smartTaskInput } = useStateContext();
   const [title, setTitle] = useState('');
   const [note, setNote] = useState('');
   const [deadline, setDeadline] = useState('');
   const [recurrence, setRecurrence] = useState([]);
+  const [dismissedPhrase, setDismissedPhrase] = useState(null);
+
+  // NLP parsing for natural language date/recurrence
+  const referenceDate = useMemo(() => {
+    return activeDateStr ? parseDateAsLocal(activeDateStr) : new Date();
+  }, [activeDateStr]);
+
+  const nlpResult = useMemo(() => {
+    if (!smartTaskInput || !title.trim()) {
+      return { hasMatch: false, type: null, cleanTitle: title, displayLabel: '', scheduledDate: null, recurrenceDays: null, matchedText: '' };
+    }
+    return parseTaskInput(title, referenceDate);
+  }, [smartTaskInput, title, referenceDate]);
+
+  const isNlpActive = smartTaskInput && nlpResult.hasMatch && dismissedPhrase !== nlpResult.matchedText;
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!title.trim()) return;
     e.target.blur?.();
     document.activeElement?.blur?.();
+
+    let finalTitle = title.trim();
+    let finalRecurrence = recurrence.length > 0 ? recurrence : null;
+    let finalTargetDate = null;
+
+    if (isNlpActive) {
+      finalTitle = nlpResult.cleanTitle || title.trim();
+      if (nlpResult.type === 'recurrence') {
+        finalRecurrence = nlpResult.recurrenceDays;
+        finalTargetDate = null;
+      } else if (nlpResult.type === 'date') {
+        finalTargetDate = nlpResult.scheduledDate;
+      }
+    }
+
     onSubmit(
-      title.trim(),
+      finalTitle,
       note.trim(),
       deadline || null,
-      recurrence.length > 0 ? recurrence : null
+      finalRecurrence,
+      finalTargetDate
     );
   };
 
@@ -36,11 +71,60 @@ export default function TaskForm({ onSubmit, onCancel, activeDateStr }) {
         type="text"
         placeholder="What needs to be done?"
         value={title}
-        onChange={(e) => setTitle(e.target.value)}
+        onChange={(e) => {
+          setTitle(e.target.value);
+          if (!e.target.value.trim() && dismissedPhrase) {
+            setDismissedPhrase(null);
+          }
+        }}
         className="bg-transparent font-sans text-[16px] md:text-[16px] font-medium placeholder-text-secondary/30 focus:outline-none w-full"
         autoFocus
         required
       />
+
+      {/* Smart Date / Recurrence Confirmation Chip */}
+      <AnimatePresence>
+        {isNlpActive && (
+          <motion.div
+            initial={{ opacity: 0, y: -4, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -4, scale: 0.96 }}
+            transition={{ duration: 0.18 }}
+            className="inline-flex items-center gap-1.5 self-start px-2.5 py-1 rounded-lg text-[11px] font-medium bg-text-primary/10 border border-text-primary/15 text-text-primary/90 shadow-sm"
+          >
+            {nlpResult.type === 'recurrence' ? (
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand-accent flex-shrink-0">
+                <polyline points="17 1 21 5 17 9"></polyline>
+                <path d="M3 11V9a4 4 0 0 1 4-4h14"></path>
+                <polyline points="7 23 3 19 7 15"></polyline>
+                <path d="M21 13v2a4 4 0 0 1-4 4H3"></path>
+              </svg>
+            ) : (
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-brand-accent flex-shrink-0">
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="16" y1="2" x2="16" y2="6"></line>
+                <line x1="8" y1="2" x2="8" y2="6"></line>
+                <line x1="3" y1="10" x2="21" y2="10"></line>
+              </svg>
+            )}
+            <span>{nlpResult.displayLabel}</span>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setDismissedPhrase(nlpResult.matchedText);
+              }}
+              className="ml-1 -mr-0.5 p-0.5 rounded hover:bg-text-primary/10 text-text-secondary/40 hover:text-text-primary transition-colors"
+              title="Don't parse date (keep as raw title)"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       <AnimatePresence>
         {title.length > 0 && (

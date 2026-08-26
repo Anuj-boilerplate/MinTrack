@@ -4,7 +4,7 @@ import { useCalendar } from '../../contexts/CalendarContext';
 import { motion } from 'framer-motion';
 
 export default function SettingsModal({ onClose, onOpenHistory }) {
-  const { updateState } = useStateContext();
+  const { updateState, smartTaskInput, toggleSmartTaskInput } = useStateContext();
   const { logout, userId } = useUserContext();
   const { isConnected, connectError, connectCalendar, disconnectCalendar } = useCalendar();
 
@@ -83,6 +83,38 @@ export default function SettingsModal({ onClose, onOpenHistory }) {
             </svg>
             Clear All Data
           </button>
+
+          {/* Smart Task Input (NLP) */}
+          <div className="pt-4 border-t border-text-primary/5">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.15em] text-text-secondary/40 mb-3">
+              Task Input
+            </span>
+            <div className="flex items-center justify-between p-3.5 rounded-2xl bg-text-primary/[0.03] border border-text-primary/10">
+              <div className="flex flex-col pr-3">
+                <span className="text-sm font-medium text-text-primary/90">
+                  Smart Date Recognition
+                </span>
+                <span className="text-[11px] text-text-secondary/50 mt-0.5 leading-snug">
+                  Recognizes dates and repeat days as you type in tasks
+                </span>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={smartTaskInput}
+                onClick={toggleSmartTaskInput}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                  smartTaskInput ? 'bg-[#c97b6e]' : 'bg-text-primary/15'
+                }`}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                    smartTaskInput ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
 
           {/* Google Calendar Connection */}
           <div className="pt-4 border-t border-text-primary/5">

@@ -99,6 +99,21 @@ export const StateProvider = ({ children, session }) => {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [transitionToTheme, setTransitionToTheme] = useState(null);
 
+  const [smartTaskInput, setSmartTaskInput] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('smart_task_input') !== 'false';
+    }
+    return true;
+  });
+
+  const toggleSmartTaskInput = useCallback(() => {
+    setSmartTaskInput(prev => {
+      const next = !prev;
+      localStorage.setItem('smart_task_input', String(next));
+      return next;
+    });
+  }, []);
+
   const toggleTheme = useCallback(() => {
     if (isTransitioning) return; // Ignore clicks if already transitioning
 
@@ -648,10 +663,12 @@ export const StateProvider = ({ children, session }) => {
     setSubjectAccentColor,
     theme,
     toggleTheme,
+    smartTaskInput,
+    toggleSmartTaskInput,
     isTransitioning,
     transitionToTheme,
     onTransitionDone
-  }), [state, mappedSubjects, updateState, loading, addTodo, toggleTodoCompleted, toggleTodoScratched, updateTodoRecurrence, deleteTodo, updateTodoTitle, setSubjectAccentColor, theme, toggleTheme, isTransitioning, transitionToTheme, onTransitionDone]);
+  }), [state, mappedSubjects, updateState, loading, addTodo, toggleTodoCompleted, toggleTodoScratched, updateTodoRecurrence, deleteTodo, updateTodoTitle, setSubjectAccentColor, theme, toggleTheme, smartTaskInput, toggleSmartTaskInput, isTransitioning, transitionToTheme, onTransitionDone]);
 
   const userContextValue = useMemo(() => ({
     userId,
