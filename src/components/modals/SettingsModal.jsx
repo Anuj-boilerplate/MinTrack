@@ -3,7 +3,7 @@ import { addActionToQueue, processSyncQueue } from '../../lib/syncQueue';
 import { useCalendar } from '../../contexts/CalendarContext';
 import { motion } from 'framer-motion';
 
-export default function SettingsModal({ onClose }) {
+export default function SettingsModal({ onClose, onOpenHistory }) {
   const { updateState } = useStateContext();
   const { logout, userId } = useUserContext();
   const { isConnected, connectError, connectCalendar, disconnectCalendar } = useCalendar();
@@ -58,6 +58,18 @@ export default function SettingsModal({ onClose }) {
         </div>
 
         <div className="flex flex-col gap-6">
+          <button
+            type="button"
+            className="w-full flex items-center justify-center gap-2 px-8 py-3 rounded-full text-sm font-medium bg-text-primary/5 text-text-primary border border-text-primary/10 hover:bg-text-primary/10 transition-colors"
+            onClick={onOpenHistory}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            Session History
+          </button>
+
           <button
             id="clear-data-btn"
             className="w-full flex items-center justify-center gap-2 px-8 py-3 rounded-full text-sm font-medium bg-[#4a1c1c] text-[#ff8f8f] hover:bg-[#5a2222] transition-colors border border-[#ff8f8f]/20"

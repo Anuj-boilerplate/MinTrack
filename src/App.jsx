@@ -3,7 +3,7 @@ import { supabase, supabaseConfigError } from './lib/supabaseClient';
 import Auth from './components/Auth';
 import { StateProvider, useStateContext, useUserContext } from './contexts/StateContext';
 import { useTimer } from './hooks/useTimer';
-import { addSessionToQueue, processSyncQueue, removeSessionsForSubject, addActionToQueue } from './lib/syncQueue';
+import { addSessionToQueue, processSyncQueue, removeSessionsForSubject, removeSessionFromQueue, addActionToQueue } from './lib/syncQueue';
 
 import SetupScreen from './components/screens/SetupScreen';
 import HomeScreen from './components/screens/HomeScreen';
@@ -15,6 +15,7 @@ import DigestScreen from './components/screens/DigestScreen';
 import AddSubjectModal from './components/modals/AddSubjectModal';
 
 import SettingsModal from './components/modals/SettingsModal';
+import SessionHistoryModal from './components/modals/SessionHistoryModal';
 import PomodoroConfigModal from './components/modals/PomodoroConfigModal';
 import SessionReviewModal from './components/modals/SessionReviewModal';
 import UpdateModal from './components/modals/UpdateModal';
@@ -248,6 +249,23 @@ function AppContent() {
     await addSessionToQueue({ subject_id: data.subjectId, start_time: data.startTime, end_time: new Date().toISOString(), duration_minutes: data.hours * 60, is_discarded: true });
   };
 
+  const handleDeleteSession = async (subjectId, sessionId) => {
+    updateState(prev => ({
+      ...prev,
+      subjects: prev.subjects.map(s =>
+        s.id === subjectId
+          ? { ...s, sessions: s.sessions.filter(sess => sess.id !== sessionId) }
+          : s
+      )
+    }));
+
+    if (userId) {
+      await removeSessionFromQueue(sessionId);
+      await addActionToQueue({ type: 'DELETE_SESSION', sessionId });
+      scheduleSyncQueue();
+    }
+  };
+
   if (loading) return null;
 
   const currentModal = activeModal?.type;
@@ -307,7 +325,20 @@ function AppContent() {
         )}
 
         {currentModal === 'settings' && (
-          <SettingsModal key="settings" onClose={() => setActiveModal(null)} />
+          <SettingsModal
+            key="settings"
+            onClose={() => setActiveModal(null)}
+            onOpenHistory={() => setActiveModal({ type: 'sessionHistory' })}
+          />
+        )}
+
+        {currentModal === 'sessionHistory' && (
+          <SessionHistoryModal
+            key="sessionHistory"
+            subjects={state.subjects}
+            onClose={() => setActiveModal(null)}
+            onDeleteSession={handleDeleteSession}
+          />
         )}
 
         {currentModal === 'pomodoro' && (

@@ -99,6 +99,9 @@ async function processActionQueue() {
         case 'DELETE_TODO':
           ({ error } = await supabase.from('todos').delete().eq('id', action.todoId));
           break;
+        case 'DELETE_SESSION':
+          ({ error } = await supabase.from('sessions').delete().eq('id', action.sessionId));
+          break;
       }
 
       if (!error) {
@@ -212,6 +215,10 @@ export async function processSyncQueue() {
   await processSessionSyncQueue();
 
   console.log('%c✨ [SyncQueue] Sync sweep completed.', 'color: #10b981; font-weight: bold;');
+}
+
+export async function removeSessionFromQueue(sessionId) {
+  await sessionQueue.removeItem(sessionId);
 }
 
 export async function removeSessionsForSubject(subjectId) {
