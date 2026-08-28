@@ -1,5 +1,6 @@
 import localforage from 'localforage';
 import { supabase } from './supabaseClient';
+import { clearDeletedSessionTombstone } from '../contexts/StateContext';
 
 // Initialize IndexedDB instances
 const sessionQueue = localforage.createInstance({
@@ -101,6 +102,7 @@ async function processActionQueue() {
           break;
         case 'DELETE_SESSION':
           ({ error } = await supabase.from('sessions').delete().eq('id', action.sessionId));
+          if (!error) clearDeletedSessionTombstone(action.sessionId);
           break;
       }
 

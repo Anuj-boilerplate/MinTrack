@@ -1,7 +1,7 @@
 import { useCallback, useState, useEffect } from 'react';
 import { supabase, supabaseConfigError } from './lib/supabaseClient';
 import Auth from './components/Auth';
-import { StateProvider, useStateContext, useUserContext } from './contexts/StateContext';
+import { StateProvider, useStateContext, useUserContext, addDeletedSessionTombstone } from './contexts/StateContext';
 import { useTimer } from './hooks/useTimer';
 import { addSessionToQueue, processSyncQueue, removeSessionsForSubject, removeSessionFromQueue, addActionToQueue } from './lib/syncQueue';
 
@@ -185,11 +185,21 @@ function AppContent() {
   };
 
   const handleManualLog = async (subjectId, startStr, endStr, durationMins, dateStr) => {
-    const refDate = dateStr ? parseDateAsLocal(dateStr) : new Date();
+    const refDate = dateStr ? parseDateAsLocal(dateStr) : getStartOfDay(new Date());
     const range = getSessionRangeFromTimes(startStr, endStr, refDate);
-    
-    const startTimeISO = range?.start.toISOString() || refDate.toISOString();
-    const endTimeISO = range?.end.toISOString() || refDate.toISOString();
+
+    let startTimeISO, endTimeISO;
+    if (range) {
+      startTimeISO = range.start.toISOString();
+      endTimeISO   = range.end.toISOString();
+    } else {
+      // Manual log without fabricated clock times:
+      // Anchor honestly to midnight of the logged date + duration
+      const start = getStartOfDay(refDate);
+      const end = new Date(start.getTime() + durationMins * 60 * 1000);
+      startTimeISO = start.toISOString();
+      endTimeISO   = end.toISOString();
+    }
 
     const newSessions = splitSessionAtMidnight(subjectId, startTimeISO, endTimeISO, durationMins);
 
@@ -250,6 +260,10 @@ function AppContent() {
   };
 
   const handleDeleteSession = async (subjectId, sessionId) => {
+    // Write tombstone immediately — prevents the session from being re-added from DB on reload
+    // even if the Supabase DELETE hasn't completed yet.
+    addDeletedSessionTombstone(sessionId);
+
     updateState(prev => ({
       ...prev,
       subjects: prev.subjects.map(s =>

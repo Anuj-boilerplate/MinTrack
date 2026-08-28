@@ -16,6 +16,29 @@ function scheduleTodoSync() {
 }
 
 const STATE_KEY = 'mintrack_state';
+// Tombstone: tracks session IDs deleted locally but not yet confirmed deleted in Supabase.
+// Prevents them from being re-added on reload before the DELETE_SESSION sync completes.
+const DELETED_SESSIONS_KEY = 'mintrack_deleted_sessions';
+
+function getDeletedSessionTombstones() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(DELETED_SESSIONS_KEY) || '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+export function addDeletedSessionTombstone(sessionId) {
+  const tombstones = getDeletedSessionTombstones();
+  tombstones.add(sessionId);
+  localStorage.setItem(DELETED_SESSIONS_KEY, JSON.stringify([...tombstones]));
+}
+
+export function clearDeletedSessionTombstone(sessionId) {
+  const tombstones = getDeletedSessionTombstones();
+  tombstones.delete(sessionId);
+  localStorage.setItem(DELETED_SESSIONS_KEY, JSON.stringify([...tombstones]));
+}
 
 const StateContext = createContext();
 const UserContext = createContext();
@@ -222,14 +245,19 @@ export const StateProvider = ({ children, session }) => {
       }
 
       // Subjects Reconciliation
+      const deletedTombstones = getDeletedSessionTombstones();
       if (dbSubjects?.length > 0) {
         patchedState.subjects = dbSubjects.map(dbSub => {
           const localSub = patchedState.subjects.find(ls => ls.id === dbSub.id) || {};
-          const subjectSessions = dbSessions ? dbSessions.filter(s => s.subject_id === dbSub.id) : [];
+          const subjectSessions = dbSessions
+            ? dbSessions.filter(s => s.subject_id === dbSub.id && !deletedTombstones.has(s.id))
+            : [];
           const dbSessionIds = new Set(subjectSessions.map(s => s.id));
 
-          // Preserve local-only sessions (queued, not yet synced to DB)
-          const localOnlySessions = (localSub.sessions || []).filter(s => !dbSessionIds.has(s.id));
+          // Preserve local-only sessions (queued, not yet synced to DB), excluding any tombstoned ones
+          const localOnlySessions = (localSub.sessions || []).filter(
+            s => !dbSessionIds.has(s.id) && !deletedTombstones.has(s.id)
+          );
           const mergedSessions = [...subjectSessions, ...localOnlySessions];
 
           return {
