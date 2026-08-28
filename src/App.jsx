@@ -19,7 +19,7 @@ import SessionHistoryModal from './components/modals/SessionHistoryModal';
 import PomodoroConfigModal from './components/modals/PomodoroConfigModal';
 import SessionReviewModal from './components/modals/SessionReviewModal';
 import UpdateModal from './components/modals/UpdateModal';
-import { getSessionRangeFromTimes, splitSessionAtMidnight, calculateDailyTarget, parseDateAsLocal } from './utils';
+import { getSessionRangeFromTimes, splitSessionAtMidnight, calculateDailyTarget, parseDateAsLocal, getStartOfDay } from './utils';
 import { CalendarProvider } from './contexts/CalendarContext';
 import { APP_VERSION } from './config';
 import { AnimatePresence, motion } from 'framer-motion';
