@@ -374,12 +374,8 @@ function AppContent() {
             accentColor={activeAccentColor}
             onSave={handleSaveSession}
             onDiscard={handleDiscardSession}
-            onCompleteTask={(taskId, isRecurring) => {
-              if (isRecurring) {
-                toggleTodoScratched(taskId);
-              } else {
-                toggleTodoCompleted(taskId);
-              }
+            onCompleteTask={(taskId) => {
+              toggleTodoCompleted(taskId);
             }}
           />
         )}

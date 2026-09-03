@@ -3,7 +3,7 @@ import { createContext, useContext, useState, useEffect, useRef, useCallback, us
 import { supabase } from '../lib/supabaseClient';
 import { getStartOfDay, getAccentColor, recalculateSubjectStats, calculateDailyTarget, toLocalDateString } from '../utils';
 import { addActionToQueue, processSyncQueue } from '../lib/syncQueue';
-import { datePart, forwardOverdueTodos, dropGhostTodos } from '../utils/todoHelpers';
+import { datePart, forwardOverdueTodos, dropGhostTodos, generateRecurringInstances } from '../utils/todoHelpers';
 
 // Debounced sync trigger for todo mutations — batches rapid actions into one flush
 let _todoSyncTimer = null;
@@ -66,6 +66,7 @@ function normalizeTodo(todo) {
     is_completed: Boolean(todo.is_completed),
     is_scratched_today: Boolean(todo.is_scratched_today),
     recurrence_days: Array.isArray(todo.recurrence_days) ? todo.recurrence_days : null,
+    recurring_group_id: todo.recurring_group_id || null,
     scheduled_date: todo.scheduled_date || null,
     display_order: todo.display_order ?? 0,
     created_at: todo.created_at ? new Date(todo.created_at).toISOString() : new Date().toISOString(),
@@ -352,6 +353,27 @@ export const StateProvider = ({ children, session }) => {
       patchedState.todos = cleanup.todos;
       const ghostTodos = cleanup.ghostRemoved;
 
+      // ── Legacy recurring migration: expand virtual recurring tasks into discrete instances ──
+      const legacyRecurring = patchedState.todos.filter(t => !t.scheduled_date && t.recurrence_days?.length > 0);
+      const migratedLegacyTasks = [];
+      if (legacyRecurring.length > 0) {
+        const remainingTodos = patchedState.todos.filter(t => t.scheduled_date || !t.recurrence_days?.length);
+        for (const legacy of legacyRecurring) {
+          const instances = generateRecurringInstances({
+            title: legacy.title,
+            note: legacy.note,
+            deadline: legacy.deadline,
+            recurrenceDays: legacy.recurrence_days,
+            startDate: todayStr,
+            endDate: datePart(patchedState.term?.endDate),
+            userId,
+            maxDays: 90
+          });
+          migratedLegacyTasks.push(...instances);
+        }
+        patchedState.todos = [...remainingTodos, ...migratedLegacyTasks];
+      }
+
       setState(patchedState);
       localStorage.setItem(STATE_KEY, JSON.stringify(patchedState));
       setLoading(false);
@@ -498,6 +520,37 @@ export const StateProvider = ({ children, session }) => {
       targetDate = termEnd;
     }
 
+    if (recurrenceDays && recurrenceDays.length > 0) {
+      const todayStr = toLocalDateString(new Date());
+      const effectiveStartDate = targetDate || todayStr;
+      const instances = generateRecurringInstances({
+        title,
+        note,
+        deadline,
+        recurrenceDays,
+        startDate: effectiveStartDate,
+        endDate: termEnd,
+        userId,
+        maxDays: 90
+      });
+
+      if (instances.length === 0) return null;
+
+      updateState(prev => ({
+        ...prev,
+        todos: [...prev.todos, ...instances]
+      }));
+
+      if (userId) {
+        await addActionToQueue({
+          type: 'INSERT_TODOS',
+          payload: instances
+        });
+        scheduleTodoSync();
+      }
+      return instances[0].id;
+    }
+
     const newId = crypto.randomUUID();
     const newTodo = {
       id: newId,
@@ -505,7 +558,7 @@ export const StateProvider = ({ children, session }) => {
       title,
       is_completed: false,
       is_scratched_today: false,
-      recurrence_days: recurrenceDays,
+      recurrence_days: null,
       scheduled_date: targetDate,
       display_order: 0,
       created_at: new Date().toISOString(),
@@ -629,6 +682,29 @@ export const StateProvider = ({ children, session }) => {
     }
   }, [userId, updateState]);
 
+  const deleteTodoSeries = useCallback(async (recurringGroupId) => {
+    if (!recurringGroupId) return;
+    let deletedIds = [];
+    updateState(prev => {
+      const toDelete = prev.todos.filter(t => t.recurring_group_id === recurringGroupId);
+      deletedIds = toDelete.map(t => t.id);
+      return {
+        ...prev,
+        todos: prev.todos.filter(t => t.recurring_group_id !== recurringGroupId)
+      };
+    });
+
+    if (userId && deletedIds.length > 0) {
+      for (const id of deletedIds) {
+        await addActionToQueue({
+          type: 'DELETE_TODO',
+          todoId: id
+        });
+      }
+      scheduleTodoSync();
+    }
+  }, [userId, updateState]);
+
   const updateTodoTitle = useCallback(async (id, title) => {
     updateState(prev => ({
       ...prev,
@@ -687,6 +763,7 @@ export const StateProvider = ({ children, session }) => {
     toggleTodoScratched,
     updateTodoRecurrence,
     deleteTodo,
+    deleteTodoSeries,
     updateTodoTitle,
     setSubjectAccentColor,
     theme,
@@ -696,7 +773,7 @@ export const StateProvider = ({ children, session }) => {
     isTransitioning,
     transitionToTheme,
     onTransitionDone
-  }), [state, mappedSubjects, updateState, loading, addTodo, toggleTodoCompleted, toggleTodoScratched, updateTodoRecurrence, deleteTodo, updateTodoTitle, setSubjectAccentColor, theme, toggleTheme, smartTaskInput, toggleSmartTaskInput, isTransitioning, transitionToTheme, onTransitionDone]);
+  }), [state, mappedSubjects, updateState, loading, addTodo, toggleTodoCompleted, toggleTodoScratched, updateTodoRecurrence, deleteTodo, deleteTodoSeries, updateTodoTitle, setSubjectAccentColor, theme, toggleTheme, smartTaskInput, toggleSmartTaskInput, isTransitioning, transitionToTheme, onTransitionDone]);
 
   const userContextValue = useMemo(() => ({
     userId,

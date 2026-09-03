@@ -4,7 +4,9 @@ import {
   getDaysCarried,
   datePart,
   forwardOverdueTodos,
-  dropGhostTodos
+  dropGhostTodos,
+  getTodosForDate,
+  generateRecurringInstances
 } from './todoHelpers';
 
 const makeTodo = (overrides = {}) => ({
@@ -153,3 +155,84 @@ describe('dropGhostTodos', () => {
     expect(ghostRemoved).toEqual([]);
   });
 });
+
+describe('generateRecurringInstances', () => {
+  it('generates an instance for every day in a date range for daily recurrence', () => {
+    const instances = generateRecurringInstances({
+      title: 'Leetcode',
+      recurrenceDays: [0, 1, 2, 3, 4, 5, 6],
+      startDate: '2026-09-01', // Tuesday
+      endDate: '2026-09-07',   // Monday
+      userId: 'user-1'
+    });
+
+    expect(instances.length).toBe(7);
+    expect(instances.map(i => i.scheduled_date)).toEqual([
+      '2026-09-01',
+      '2026-09-02',
+      '2026-09-03',
+      '2026-09-04',
+      '2026-09-05',
+      '2026-09-06',
+      '2026-09-07'
+    ]);
+
+    // All instances have unique IDs and share the same recurring_group_id
+    const ids = new Set(instances.map(i => i.id));
+    expect(ids.size).toBe(7);
+    expect(instances.every(i => i.recurring_group_id === instances[0].recurring_group_id)).toBe(true);
+    expect(instances.every(i => i.is_completed === false)).toBe(true);
+    expect(instances.every(i => i.user_id === 'user-1')).toBe(true);
+  });
+
+  it('filters by weekdays correctly', () => {
+    const instances = generateRecurringInstances({
+      title: 'Gym',
+      recurrenceDays: [1, 2, 3, 4, 5], // Mon-Fri
+      startDate: '2026-09-04', // Friday
+      endDate: '2026-09-07'    // Monday
+    });
+
+    // 2026-09-04 is Fri (5), 05 is Sat (6), 06 is Sun (0), 07 is Mon (1)
+    expect(instances.map(i => i.scheduled_date)).toEqual([
+      '2026-09-04',
+      '2026-09-07'
+    ]);
+  });
+
+  it('returns empty array when recurrenceDays is empty or null', () => {
+    expect(generateRecurringInstances({ title: 'Task', recurrenceDays: [] })).toEqual([]);
+    expect(generateRecurringInstances({ title: 'Task', recurrenceDays: null })).toEqual([]);
+  });
+});
+
+describe('getTodosForDate with independent recurring instances', () => {
+  it('places each concrete recurring instance strictly on its own scheduled_date', () => {
+    const instances = generateRecurringInstances({
+      title: 'Leetcode',
+      recurrenceDays: [0, 1, 2, 3, 4, 5, 6],
+      startDate: '2026-09-01',
+      endDate: '2026-09-03'
+    });
+
+    // Completing the task on Sep 02
+    instances[1].is_completed = true;
+
+    const day1Todos = getTodosForDate(instances, '2026-09-01');
+    const day2Todos = getTodosForDate(instances, '2026-09-02');
+    const day3Todos = getTodosForDate(instances, '2026-09-03');
+
+    expect(day1Todos.length).toBe(1);
+    expect(day1Todos[0].id).toBe(instances[0].id);
+    expect(day1Todos[0].is_completed).toBe(false);
+
+    expect(day2Todos.length).toBe(1);
+    expect(day2Todos[0].id).toBe(instances[1].id);
+    expect(day2Todos[0].is_completed).toBe(true); // completed on day 2!
+
+    expect(day3Todos.length).toBe(1);
+    expect(day3Todos[0].id).toBe(instances[2].id);
+    expect(day3Todos[0].is_completed).toBe(false); // day 3 remains incomplete!
+  });
+});
+

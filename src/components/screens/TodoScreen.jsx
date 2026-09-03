@@ -77,19 +77,13 @@ export default function TodoScreen({ isActive }) {
   const handleComplete = (todo) => {
     setCompletingIds(prev => [...prev, todo.id]);
     setTimeout(() => {
-      if (todo.recurrence_days && todo.recurrence_days.length > 0) {
-        toggleTodoScratched(todo.id);
-      } else {
-        toggleTodoCompleted(todo.id);
-      }
+      toggleTodoCompleted(todo.id);
       setCompletingIds(prev => prev.filter(id => id !== todo.id));
     }, 400);
   };
 
   const handleUncomplete = (todoId) => {
-    const todo = state.todos.find(t => t.id === todoId);
-    if (todo?.recurrence_days?.length > 0) toggleTodoScratched(todoId);
-    else toggleTodoCompleted(todoId);
+    toggleTodoCompleted(todoId);
   };
 
   const OFFSETS = [-2, -1, 0, 1, 2, 3, 4];
@@ -116,7 +110,7 @@ export default function TodoScreen({ isActive }) {
 
   const handleAddTask = async (title, note, deadline, recurrenceDays, targetDateOverride = null) => {
     if (!title.trim()) return;
-    const targetDate = recurrenceDays && recurrenceDays.length > 0 ? null : (targetDateOverride || activeDateStr);
+    const targetDate = targetDateOverride || activeDateStr;
     await addTodo(title.trim(), note.trim(), deadline || null, targetDate, recurrenceDays && recurrenceDays.length > 0 ? recurrenceDays : null);
     setIsAdding(false);
   };
@@ -217,19 +211,8 @@ export default function TodoScreen({ isActive }) {
             const isActualToday = dateStr === actualTodayStr;
 
             // Active vs Completed
-            const activeTodos = dayTodos.filter(t => {
-              if (t.recurrence_days && t.recurrence_days.length > 0) {
-                return !t.is_scratched_today;
-              }
-              return !t.is_completed;
-            });
-
-            const doneTodos = dayTodos.filter(t => {
-              if (t.recurrence_days && t.recurrence_days.length > 0) {
-                return t.is_scratched_today;
-              }
-              return t.is_completed;
-            });
+            const activeTodos = dayTodos.filter(t => !t.is_completed);
+            const doneTodos = dayTodos.filter(t => t.is_completed);
 
             const pendingCount = activeTodos.length;
             const isActive = dateStr === activeDateStr;

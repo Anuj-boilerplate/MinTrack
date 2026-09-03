@@ -2,6 +2,16 @@
 
 export const CHANGELOG = [
   {
+    version: '2.5.2',
+    date: '2026-09-03',
+    changes: [
+      {
+        title: "Independent Recurring Tasks",
+        description: "Completing a repeating task (like doing daily Leetcode) on Monday no longer checks it off for the entire week. Recurring tasks now materialize as independent instances for every scheduled day — so each day gets its own honest checkmark, its own completed trail, and untouched future days."
+      }
+    ]
+  },
+  {
     version: '2.5.1',
     date: '2026-08-10',
     changes: [

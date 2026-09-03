@@ -81,6 +81,26 @@ async function processActionQueue() {
             google_event_id: action.payload.google_event_id ?? null
           }));
           break;
+        case 'INSERT_TODOS': {
+          const rows = Array.isArray(action.payload) ? action.payload : [action.payload];
+          const sanitized = rows.map(r => ({
+            id: r.id,
+            user_id: r.user_id,
+            title: r.title,
+            is_completed: r.is_completed ?? false,
+            is_scratched_today: r.is_scratched_today ?? false,
+            recurrence_days: r.recurrence_days ?? null,
+            scheduled_date: r.scheduled_date ?? null,
+            display_order: r.display_order ?? 0,
+            created_at: r.created_at || new Date().toISOString(),
+            note: r.note ?? null,
+            deadline: r.deadline ?? null,
+            original_date: r.original_date ?? null,
+            google_event_id: r.google_event_id ?? null
+          }));
+          ({ error } = await supabase.from('todos').insert(sanitized));
+          break;
+        }
         case 'UPDATE_TODO': {
           const updatePayload = {};
           const p = action.payload;

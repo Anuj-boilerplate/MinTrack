@@ -58,9 +58,7 @@ export default function MobileRunway({
   };
 
   const handleUncomplete = (todoId) => {
-    const todo = state.todos.find(t => t.id === todoId);
-    if (todo?.recurrence_days?.length > 0) toggleTodoScratched(todoId);
-    else toggleTodoCompleted(todoId);
+    toggleTodoCompleted(todoId);
   };
 
   const cardWidth = windowWidth * 0.72; // 72vw per card (leaves edge peek)
@@ -189,8 +187,8 @@ export default function MobileRunway({
           const dateStr = getDateForOffset(offset, new Date(actualTodayStr + 'T12:00:00'));
           const dayTodos = getTodosForDate(state.todos, dateStr);
 
-          const activeTodos = dayTodos.filter(t => t.recurrence_days?.length ? !t.is_scratched_today : !t.is_completed).filter(t => t.id !== pendingDelete?.id);
-          const doneTodos = dayTodos.filter(t => t.recurrence_days?.length ? t.is_scratched_today : t.is_completed).filter(t => t.id !== pendingDelete?.id);
+          const activeTodos = dayTodos.filter(t => !t.is_completed).filter(t => t.id !== pendingDelete?.id);
+          const doneTodos = dayTodos.filter(t => t.is_completed).filter(t => t.id !== pendingDelete?.id);
 
           const isActive = offset === activeIndex;
           const cardOpacity = offset === activeIndex - 1 ? opacityLeft : offset === activeIndex ? opacityCenter : opacityRight;

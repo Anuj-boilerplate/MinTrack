@@ -63,12 +63,85 @@ export function getDaysCarried(originalDate, currentDate) {
 export function getTodosForDate(todos, dateStr) {
   const dow = new Date(dateStr + 'T12:00:00').getDay(); // 0=Sun, 6=Sat
   return todos.filter(todo => {
+    const sched = datePart(todo.scheduled_date);
+    if (sched) {
+      return sched === dateStr;
+    }
     if (todo.recurrence_days && todo.recurrence_days.length > 0) {
       return todo.recurrence_days.includes(dow);
     }
-    return todo.scheduled_date === dateStr;
+    return false;
   });
 }
+
+export function generateRecurringInstances({
+  title,
+  note = '',
+  deadline = null,
+  recurrenceDays,
+  startDate,
+  endDate = null,
+  userId = null,
+  maxDays = 90
+}) {
+  if (!recurrenceDays || recurrenceDays.length === 0) return [];
+
+  const startStr = datePart(startDate) || new Date().toISOString().split('T')[0];
+  const start = new Date(startStr + 'T12:00:00');
+  if (isNaN(start.getTime())) return [];
+
+  const endStr = endDate ? datePart(endDate) : null;
+  let end = endStr ? new Date(endStr + 'T12:00:00') : null;
+
+  // Default to 30 days if no valid endDate or if endDate is before startDate
+  if (!end || isNaN(end.getTime()) || end < start) {
+    end = new Date(start);
+    end.setDate(end.getDate() + 29);
+  }
+
+  // Safety cap to avoid runaway loops
+  const maxEnd = new Date(start);
+  maxEnd.setDate(maxEnd.getDate() + maxDays - 1);
+  if (end > maxEnd) {
+    end = maxEnd;
+  }
+
+  const recurringGroupId = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : `rec-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
+
+  const instances = [];
+  const current = new Date(start);
+
+  while (current <= end) {
+    const dow = current.getDay();
+    if (recurrenceDays.includes(dow)) {
+      const dateStr = current.toISOString().split('T')[0];
+      instances.push({
+        id: typeof crypto !== 'undefined' && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `todo-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
+        user_id: userId,
+        title,
+        note,
+        deadline,
+        scheduled_date: dateStr,
+        recurrence_days: [...recurrenceDays],
+        recurring_group_id: recurringGroupId,
+        is_completed: false,
+        is_scratched_today: false,
+        display_order: 0,
+        created_at: new Date().toISOString(),
+        original_date: null,
+        google_event_id: null
+      });
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  return instances;
+}
+
 
 // Tidal sweep: auto-forward incomplete one-off tasks scheduled before today.
 // The first forward stamps original_date with the task's first scheduled date;
