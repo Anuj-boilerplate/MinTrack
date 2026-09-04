@@ -1,6 +1,8 @@
-import { useState, useCallback, useEffect, useRef, memo } from 'react';
+import { useState, useCallback, useEffect, useRef, memo, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useStateContext } from '../../contexts/StateContext';
+import { toLocalDateString } from '../../utils';
+import { getTodosForDate } from '../../utils/todoHelpers';
 
 // ---------------------------------------------------------------------------
 // StepperRow — memo'd so only the row whose value changed re-renders
@@ -97,7 +99,12 @@ export default function PomodoroConfigModal({ onClose, onStart, accentColor = '#
   const [selectedTaskId, setSelectedTaskId] = useState(null);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const tasks = state.todos.filter(t => !t.is_completed);
+  const todayStr = toLocalDateString();
+  const tasks = useMemo(() => {
+    return getTodosForDate(state.todos || [], todayStr).filter(
+      t => !t.is_completed && !t.is_scratched_today
+    );
+  }, [state.todos, todayStr]);
 
   const presetsPaneRef = useRef(null);
   const customPaneRef = useRef(null);
