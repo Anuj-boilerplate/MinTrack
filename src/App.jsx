@@ -1,9 +1,8 @@
 import { useCallback, useState, useEffect } from 'react';
 import { supabase, supabaseConfigError } from './lib/supabaseClient';
 import Auth from './components/Auth';
-import { StateProvider, useStateContext, useUserContext, addDeletedSessionTombstone } from './contexts/StateContext';
+import { StateProvider, useStateContext } from './contexts/StateContext';
 import { useTimer } from './hooks/useTimer';
-import { addSessionToQueue, processSyncQueue, removeSessionsForSubject, removeSessionFromQueue, addActionToQueue } from './lib/syncQueue';
 
 import SetupScreen from './components/screens/SetupScreen';
 import HomeScreen from './components/screens/HomeScreen';
@@ -19,7 +18,7 @@ import SessionHistoryModal from './components/modals/SessionHistoryModal';
 import PomodoroConfigModal from './components/modals/PomodoroConfigModal';
 import SessionReviewModal from './components/modals/SessionReviewModal';
 import UpdateModal from './components/modals/UpdateModal';
-import { getSessionRangeFromTimes, splitSessionAtMidnight, calculateDailyTarget, parseDateAsLocal, getStartOfDay } from './utils';
+import { getSessionRangeFromTimes, splitSessionAtMidnight, parseDateAsLocal, getStartOfDay } from './utils';
 import { CalendarProvider } from './contexts/CalendarContext';
 import { APP_VERSION } from './config';
 import { AnimatePresence, motion } from 'framer-motion';
@@ -28,23 +27,12 @@ import ThemeTransitionOverlay from './components/ThemeTransitionOverlay';
 
 import './index.css';
 
-// Debounced wrapper — batches rapid post-action sync triggers into one call.
-// The 60s interval and the online listener in useEffect use processSyncQueue directly
-// since those are intentional timed sweeps, not user-action bursts.
-let _syncDebounceTimer = null;
-function scheduleSyncQueue() {
-  if (_syncDebounceTimer) clearTimeout(_syncDebounceTimer);
-  _syncDebounceTimer = setTimeout(() => {
-    _syncDebounceTimer = null;
-    processSyncQueue();
-  }, 600);
-}
-
 // The inner app that has access to the StateContext
 function AppContent() {
-  const { state, updateState, loading, isTransitioning, transitionToTheme, onTransitionDone, toggleTodoCompleted, toggleTodoScratched } = useStateContext();
-  const { userId } = useUserContext();
-  const timer = useTimer(state, updateState);
+  const { state, loading, loadError, mutationError, clearMutationError, refresh,
+    addSubject, editSubject, deleteSubject, insertSessions, deleteSession, timerAction,
+    isTransitioning, transitionToTheme, onTransitionDone } = useStateContext();
+  const timer = useTimer(state, timerAction);
 
   const [activeModal, setActiveModal] = useState(() => (
     !localStorage.getItem(`seen_update_${APP_VERSION}`) ? { type: 'update' } : null
@@ -52,29 +40,18 @@ function AppContent() {
   const [sessionReviewData, setSessionReviewData] = useState(null);
   const [activeTab, setActiveTab] = useState('goals');
 
-  const handleStopSession = useCallback(() => {
+  const handleStopSession = useCallback(async () => {
     const activeSession = state.activeSession;
-    if (!activeSession) return;
+    if (!activeSession || activeSession.status === 'review') return;
+
+    const stopped = await timerAction('stop_timer');
+    if (!stopped) return;
 
     const { subjectId } = activeSession;
-    const hours = timer.calculateNetFocusTime();
+    const stoppedSession = { ...activeSession, stoppedAt: stopped.stopped_at,
+      totalPausedMs: Number(stopped.total_paused_ms || 0), isPaused: false };
+    const hours = timer.calculateNetFocusTime(stoppedSession);
     const sub = state.subjects.find((s) => s.id === subjectId);
-
-    const { totalPausedMs = 0, isPaused, pausedAt } = activeSession;
-    const currentPausedSessionMs = isPaused ? (Date.now() - pausedAt) : 0;
-    const finalTotalPausedMs = totalPausedMs + currentPausedSessionMs;
-    const pausedHours = finalTotalPausedMs / (1000 * 60 * 60);
-
-    timer.clearSession();
-
-    updateState((prev) => ({
-      ...prev,
-      subjects: prev.subjects.map((s) => s.id === subjectId ? {
-        ...s,
-        paused_time_total: (s.paused_time_total || 0) + pausedHours,
-        paused_time_today: (s.paused_time_today || 0) + pausedHours
-      } : s)
-    }));
 
     const linkedTask = activeSession.taskId
       ? state.todos.find(t => t.id === activeSession.taskId)
@@ -83,22 +60,14 @@ function AppContent() {
       subjectId,
       subjectName: sub?.name || 'Unknown Subject',
       hours,
-      startTime: activeSession.startedAt || new Date(activeSession.startTime).toISOString(),
+      startTime: activeSession.startedAt,
+      endTime: stopped.stopped_at,
       taskId: linkedTask ? linkedTask.id : null,
       taskTitle: linkedTask ? linkedTask.title : null,
       taskIsRecurring: linkedTask?.recurrence_days?.length > 0 || false
     });
     setActiveModal({ type: 'sessionReview' });
-  }, [state.activeSession, state.subjects, state.todos, timer, updateState]);
-
-  useEffect(() => {
-    const interval = setInterval(processSyncQueue, 60000);
-    window.addEventListener('online', processSyncQueue);
-    return () => {
-      clearInterval(interval);
-      window.removeEventListener('online', processSyncQueue);
-    };
-  }, []);
+  }, [state.activeSession, state.subjects, state.todos, timer, timerAction]);
 
   useEffect(() => {
     if (!timer.isDone || !state.activeSession) return;
@@ -110,177 +79,88 @@ function AppContent() {
     setActiveModal({ type, subjectId });
   }, []);
 
+  useEffect(() => {
+    const active = state.activeSession;
+    if (active?.status !== 'review' || sessionReviewData) return;
+    const linkedTask = active.taskId ? state.todos.find(t => t.id === active.taskId) : null;
+    const subject = state.subjects.find(s => s.id === active.subjectId);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setSessionReviewData({
+      subjectId: active.subjectId,
+      subjectName: subject?.name || 'Unknown Subject',
+      hours: timer.calculateNetFocusTime(active),
+      startTime: active.startedAt,
+      endTime: active.stoppedAt,
+      taskId: linkedTask?.id || null,
+      taskTitle: linkedTask?.title || null,
+      taskIsRecurring: Boolean(linkedTask?.recurrence_days?.length)
+    });
+    setActiveModal({ type: 'sessionReview' });
+  }, [state.activeSession, state.todos, state.subjects, sessionReviewData, timer]);
+
   const handleAddSubject = async (name, target, deadline) => {
-    const newId = crypto.randomUUID();
-    const newSubject = {
-      id: newId,
-      name,
-      target_hours: target,
-      valid_hours: 0,
-      deadline,
-      sessions: [],
-      daily_target: calculateDailyTarget(
-        { target_hours: target, valid_hours: 0, deadline, sessions: [] },
-        state.term?.endDate
-      )
-    };
-
-    updateState(prev => ({
-      ...prev,
-      subjects: [...prev.subjects, newSubject]
-    }));
-    setActiveModal(null);
-
-    // Sync to Supabase via Queue
-    if (userId) {
-      await addActionToQueue({
-        type: 'INSERT_SUBJECT',
-        payload: {
-          id: newId,
-          user_id: userId,
-          name: name,
-          target_hours: target,
-          valid_hours: 0,
-          deadline: deadline,
-          accent_color: '#c97b6e'
-        }
-      });
-      scheduleSyncQueue();
-    }
+    if (await addSubject(name, target, deadline)) setActiveModal(null);
   };
 
   const handleEditSubject = async (id, name, target, deadline) => {
-    updateState(prev => ({
-      ...prev,
-      subjects: prev.subjects.map(s => s.id === id ? { ...s, name, target_hours: target, deadline } : s)
-    }));
-    setActiveModal(null);
-
-    // Sync to Supabase via Queue
-    if (userId) {
-      await addActionToQueue({
-        type: 'UPDATE_SUBJECT',
-        subjectId: id,
-        payload: { name: name, target_hours: target, deadline }
-      });
-      scheduleSyncQueue();
-    }
+    const res = await editSubject(id, name, target, deadline);
+    if (res) setActiveModal(null);
+    return res;
   };
 
   const handleDeleteSubject = async (id) => {
-    if (confirm("Are you sure you want to delete this goal?")) {
-      updateState(prev => ({ ...prev, subjects: prev.subjects.filter(s => s.id !== id) }));
-      setActiveModal(null);
-
-      // Sync to Supabase via Queue
-      if (userId) {
-        await removeSessionsForSubject(id);
-        await addActionToQueue({
-          type: 'DELETE_SUBJECT',
-          subjectId: id
-        });
-        scheduleSyncQueue();
-      }
-    }
+    if (!confirm('Are you sure you want to delete this goal and its sessions?')) return false;
+    const res = await deleteSubject(id);
+    if (res) setActiveModal(null);
+    return res;
   };
 
   const handleManualLog = async (subjectId, startStr, endStr, durationMins, dateStr) => {
     const refDate = dateStr ? parseDateAsLocal(dateStr) : getStartOfDay(new Date());
     const range = getSessionRangeFromTimes(startStr, endStr, refDate);
-
     let startTimeISO, endTimeISO;
     if (range) {
       startTimeISO = range.start.toISOString();
-      endTimeISO   = range.end.toISOString();
+      endTimeISO = range.end.toISOString();
     } else {
-      // Manual log without fabricated clock times:
-      // Anchor honestly to midnight of the logged date + duration
       const start = getStartOfDay(refDate);
-      const end = new Date(start.getTime() + durationMins * 60 * 1000);
       startTimeISO = start.toISOString();
-      endTimeISO   = end.toISOString();
+      endTimeISO = new Date(start.getTime() + durationMins * 60000).toISOString();
     }
+    const rows = splitSessionAtMidnight(subjectId, startTimeISO, endTimeISO, durationMins);
+    if (await insertSessions(rows)) setActiveModal(null);
+  };
 
-    const newSessions = splitSessionAtMidnight(subjectId, startTimeISO, endTimeISO, durationMins);
-
-    updateState(prev => {
-      return {
-        ...prev,
-        subjects: prev.subjects.map(s => s.id === subjectId
-          ? {
-            ...s,
-            sessions: [...newSessions, ...(s.sessions || [])]
-          }
-          : s)
-      };
+  const handleSaveSession = async (data, markTaskComplete) => {
+    const rows = splitSessionAtMidnight(data.subjectId, data.startTime, data.endTime, data.hours * 60);
+    const saved = await timerAction('complete_timer', {
+      p_sessions: rows.map(row => ({
+        id: row.id, start_time: row.start_time, end_time: row.end_time,
+        duration_minutes: row.duration_minutes
+      })),
+      p_mark_task_completed: Boolean(markTaskComplete)
     });
-    setActiveModal(null);
-
-    for (const session of newSessions) {
-      await addSessionToQueue(session);
-    }
-
-    // We still call processSyncQueue but the queue handles it
-    scheduleSyncQueue();
-  };
-
-  const handleSaveSession = async (data) => {
-    const startTimeISO = data.startTime;
-    const endTimeISO = new Date().toISOString();
-    const durationMins = data.hours * 60;
-
-    const newSessions = splitSessionAtMidnight(data.subjectId, startTimeISO, endTimeISO, durationMins);
-
-    updateState(prev => {
-      return {
-        ...prev,
-        subjects: prev.subjects.map(s => s.id === data.subjectId
-          ? {
-            ...s,
-            sessions: [...newSessions, ...(s.sessions || [])]
-          }
-          : s)
-      };
-    });
-    
-    setActiveModal(null);
+    if (!saved) return;
     setSessionReviewData(null);
-
-    for (const session of newSessions) {
-      await addSessionToQueue(session);
-    }
-
-    scheduleSyncQueue();
-  };
-
-  const handleDiscardSession = async (data) => {
     setActiveModal(null);
-    setSessionReviewData(null);
-    await addSessionToQueue({ subject_id: data.subjectId, start_time: data.startTime, end_time: new Date().toISOString(), duration_minutes: data.hours * 60, is_discarded: true });
+    await refresh();
   };
 
-  const handleDeleteSession = async (subjectId, sessionId) => {
-    // Write tombstone immediately — prevents the session from being re-added from DB on reload
-    // even if the Supabase DELETE hasn't completed yet.
-    addDeletedSessionTombstone(sessionId);
-
-    updateState(prev => ({
-      ...prev,
-      subjects: prev.subjects.map(s =>
-        s.id === subjectId
-          ? { ...s, sessions: s.sessions.filter(sess => sess.id !== sessionId) }
-          : s
-      )
-    }));
-
-    if (userId) {
-      await removeSessionFromQueue(sessionId);
-      await addActionToQueue({ type: 'DELETE_SESSION', sessionId });
-      scheduleSyncQueue();
+  const handleDiscardSession = async () => {
+    if (await timerAction('clear_timer')) {
+      setSessionReviewData(null);
+      setActiveModal(null);
     }
   };
 
-  if (loading) return null;
+  const handleDeleteSession = async (_subjectId, sessionId) => {
+    await deleteSession(sessionId);
+  };
+  if (loading) return <div className="min-h-screen flex items-center justify-center text-text-secondary">Loading your study data…</div>;
+  if (loadError) return <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
+    <p className="text-text-primary">Could not load your study data: {loadError}</p>
+    <button className="primary-btn" onClick={refresh}>Retry</button>
+  </div>;
 
   const currentModal = activeModal?.type;
   const activeSubjectData = activeModal?.subjectId ? state.subjects.find(s => s.id === activeModal.subjectId) : null;
@@ -288,13 +168,16 @@ function AppContent() {
 
   return (
     <div className={`app-shell ${currentModal ? 'modal-active' : ''}`}>
+      {mutationError && <div role="alert" className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] max-w-[90vw] rounded-xl bg-[#4a1c1c] text-[#ffdddd] px-5 py-3 text-sm shadow-xl">
+        {mutationError} <button className="ml-3 underline" onClick={clearMutationError}>Dismiss</button>
+      </div>}
       {!state.term ? (
         <SetupScreen />
       ) : (
         <>
           <TopBar onOpenSettings={() => handleOpenModal('settings')} />
           <AnimatePresence mode="wait">
-            {state.activeSession ? (
+            {state.activeSession && state.activeSession.status !== 'review' ? (
               <TimerScreen key="timer-screen" timer={timer} onStop={handleStopSession} />
             ) : (
               <div key="main-app" className="contents">
@@ -360,9 +243,8 @@ function AppContent() {
             key="pomodoro"
             accentColor={activeAccentColor}
             onClose={() => setActiveModal(null)}
-            onStart={(config) => {
-              timer.startFocusSession(activeModal.subjectId, config);
-              setActiveModal(null);
+            onStart={async (config) => {
+              if (await timer.startFocusSession(activeModal.subjectId, config)) setActiveModal(null);
             }}
           />
         )}
@@ -374,9 +256,6 @@ function AppContent() {
             accentColor={activeAccentColor}
             onSave={handleSaveSession}
             onDiscard={handleDiscardSession}
-            onCompleteTask={(taskId) => {
-              toggleTodoCompleted(taskId);
-            }}
           />
         )}
 
@@ -427,7 +306,7 @@ export default function App() {
             {supabaseConfigError}
           </p>
           <div className="text-sm text-text-secondary space-y-3">
-            <p>Add these in Netlify under Site configuration → Environment variables:</p>
+            <p>Add these in Netlify under Site configuration â†’ Environment variables:</p>
             <p><code>VITE_SUPABASE_URL</code></p>
             <p><code>VITE_SUPABASE_ANON_KEY</code></p>
             <p>Then trigger a fresh deploy.</p>
@@ -449,3 +328,4 @@ export default function App() {
     </StateProvider>
   );
 }
+

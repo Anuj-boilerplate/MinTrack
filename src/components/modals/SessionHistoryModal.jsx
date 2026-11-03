@@ -1,7 +1,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { formatHoursToMins, hexToRgba } from '../../utils';
 
-function isManualSession(startISO, endISO) {
+function isManualSession(startISO) {
   if (!startISO) return true;
   const start = new Date(startISO);
   if (isNaN(start.getTime())) return true;
@@ -16,7 +16,7 @@ function formatSessionSubtitle(startISO, endISO) {
   if (isNaN(start.getTime())) return '';
   const datePart = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 
-  if (isManualSession(startISO, endISO)) {
+  if (isManualSession(startISO)) {
     return `${datePart} \u00B7 Manually logged`;
   }
 

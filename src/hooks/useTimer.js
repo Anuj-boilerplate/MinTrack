@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getStartOfDay, getDaysLeft } from '../utils';
 
-export function useTimer(state, updateState) {
+export function useTimer(state, timerAction) {
   const [displayTime, setDisplayTime] = useState('00:00');
   const [phaseInfo, setPhaseInfo] = useState({ phase: 'Focus Phase', phaseClass: 'focus-tag', cycleText: 'Cycle 1' });
   const [dailyProgressPct, setDailyProgressPct] = useState(0);
@@ -46,54 +46,33 @@ export function useTimer(state, updateState) {
     osc.stop(audioCtxRef.current.currentTime + 0.5);
   }, []);
 
-  const startFocusSession = (subjectId, uiSettings) => {
+  const startFocusSession = async (subjectId, uiSettings) => {
     initAudio();
-    const startTime = Date.now();
-    updateState({
-      activeSession: {
-        subjectId,
-        taskId: uiSettings?.taskId || null,
-        startTime,
-        startedAt: new Date(startTime).toISOString(),
-        ui: uiSettings,
-        lastNotifiedPhaseId: null,
-        isPaused: false,
-        pausedAt: null,
-        totalPausedMs: 0
-      }
+    return timerAction('start_timer', {
+      p_subject_id: subjectId,
+      p_task_id: uiSettings?.taskId || null,
+      p_focus_length: uiSettings.focusLength,
+      p_break_length: uiSettings.breakLength,
+      p_cycles: uiSettings.cycles,
     });
   };
 
-  const pause = () => {
+  const pause = async () => {
     const active = stateRef.current.activeSession;
     if (!active || active.isPaused) return;
-    updateState({
-      activeSession: {
-        ...active,
-        isPaused: true,
-        pausedAt: Date.now()
-      }
-    });
+    return timerAction('pause_timer');
   };
 
-  const resume = () => {
+  const resume = async () => {
     const active = stateRef.current.activeSession;
     if (!active || !active.isPaused) return;
-    const pauseDuration = Date.now() - active.pausedAt;
-    updateState({
-      activeSession: {
-        ...active,
-        isPaused: false,
-        pausedAt: null,
-        totalPausedMs: (active.totalPausedMs || 0) + pauseDuration
-      }
-    });
+    return timerAction('resume_timer');
   };
 
   const updateTimerDisplay = useCallback(() => {
     const currentState = stateRef.current;
     const active = currentState.activeSession;
-    if (!active) return;
+    if (!active || active.status === 'review') return;
 
     const now = active.isPaused ? active.pausedAt : Date.now();
     const elapsedMs = now - active.startTime - (active.totalPausedMs || 0);
@@ -161,10 +140,11 @@ export function useTimer(state, updateState) {
     setDisplayTime(String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0'));
   }, [playBeep]);
 
-  const calculateNetFocusTime = () => {
-    const activeSession = stateRef.current.activeSession;
+  const calculateNetFocusTime = (session) => {
+    const activeSession = session || stateRef.current.activeSession;
     if (!activeSession) return 0;
-    const now = activeSession.isPaused ? activeSession.pausedAt : Date.now();
+    const now = activeSession.stoppedAt ? Date.parse(activeSession.stoppedAt) :
+      activeSession.isPaused ? activeSession.pausedAt : Date.now();
     let rawElapsedMs = now - activeSession.startTime - (activeSession.totalPausedMs || 0);
     const fMs = activeSession.ui.focusLength * 60000;
     const bMs = activeSession.ui.breakLength * 60000;
@@ -181,14 +161,13 @@ export function useTimer(state, updateState) {
   };
 
   const clearSession = () => {
-    updateState({ activeSession: null });
     lastNotifiedPhaseIdRef.current = null;
     setDisplayTime('00:00');
     setIsDone(false);
   };
 
   useEffect(() => {
-    if (!state.activeSession) return;
+    if (!state.activeSession || state.activeSession.status === 'review') return;
     updateTimerDisplay();
 
     if (!workerRef.current) {
@@ -207,6 +186,12 @@ export function useTimer(state, updateState) {
       }
     };
   }, [state.activeSession, updateTimerDisplay]);
+
+  useEffect(() => {
+    if (state.activeSession?.status === 'running' || state.activeSession?.status === 'paused') return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setIsDone(false);
+  }, [state.activeSession?.status]);
 
   return {
     startFocusSession,

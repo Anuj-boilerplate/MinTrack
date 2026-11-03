@@ -15,8 +15,8 @@ export default function TodoScreen({ isActive }) {
     state,
     addTodo,
     toggleTodoCompleted,
-    toggleTodoScratched,
     deleteTodo,
+    deleteTodoSeries,
     updateTodoTitle
   } = useStateContext();
 
@@ -111,8 +111,10 @@ export default function TodoScreen({ isActive }) {
   const handleAddTask = async (title, note, deadline, recurrenceDays, targetDateOverride = null) => {
     if (!title.trim()) return;
     const targetDate = targetDateOverride || activeDateStr;
-    await addTodo(title.trim(), note.trim(), deadline || null, targetDate, recurrenceDays && recurrenceDays.length > 0 ? recurrenceDays : null);
+    const createdId = await addTodo(title.trim(), note.trim(), deadline || null, targetDate, recurrenceDays && recurrenceDays.length > 0 ? recurrenceDays : null);
+    if (!createdId) return false;
     setIsAdding(false);
+    return true;
   };
 
   return (
@@ -344,6 +346,7 @@ export default function TodoScreen({ isActive }) {
                           todo={todo}
                           onComplete={handleComplete}
                           onDelete={deleteTodo}
+                          onDeleteSeries={deleteTodoSeries}
                           onUpdateTitle={updateTodoTitle}
                           isCompleting={completingIds.includes(todo.id)}
                         />
@@ -378,9 +381,9 @@ export default function TodoScreen({ isActive }) {
             handleAddTask={handleAddTask}
             isJumpNavigating={isJumpNavigating}
             deleteTodo={deleteTodo}
+            deleteTodoSeries={deleteTodoSeries}
             updateTodoTitle={updateTodoTitle}
             toggleTodoCompleted={toggleTodoCompleted}
-            toggleTodoScratched={toggleTodoScratched}
           />
         )}
       </div>

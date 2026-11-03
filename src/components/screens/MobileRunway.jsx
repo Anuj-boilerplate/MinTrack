@@ -18,9 +18,9 @@ export default function MobileRunway({
   handleAddTask,
   isJumpNavigating,
   deleteTodo,
+  deleteTodoSeries,
   updateTodoTitle,
   toggleTodoCompleted,
-  toggleTodoScratched,
   className
 }) {
   const x = useMotionValue(0);
@@ -255,6 +255,7 @@ export default function MobileRunway({
                       todo={todo}
                       onComplete={handleComplete}
                       onDelete={handleDeleteRequest}
+                      onDeleteSeries={deleteTodoSeries}
                       onUpdateTitle={updateTodoTitle}
                       isCompleting={completingIds.includes(todo.id)}
                       isMobile

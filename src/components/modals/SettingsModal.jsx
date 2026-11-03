@@ -1,27 +1,17 @@
 import { useStateContext, useUserContext } from '../../contexts/StateContext';
-import { addActionToQueue, processSyncQueue } from '../../lib/syncQueue';
 import { useCalendar } from '../../contexts/CalendarContext';
 import { motion } from 'framer-motion';
 
 export default function SettingsModal({ onClose, onOpenHistory }) {
-  const { updateState, smartTaskInput, toggleSmartTaskInput } = useStateContext();
-  const { logout, userId } = useUserContext();
+  const { clearAllData, smartTaskInput, toggleSmartTaskInput } = useStateContext();
+  const { logout } = useUserContext();
   const { isConnected, connectError, connectCalendar, disconnectCalendar } = useCalendar();
 
   const handleClearData = async () => {
     if (!confirm('Are you sure you want to completely erase all data? This cannot be undone!')) return;
-
-    // Clear local state immediately
-    updateState({ term: null, subjects: [], activeSession: null, last_updated_date: null });
-    onClose();
-
-    // Queue the deletion for Supabase
-    if (userId) {
-      await addActionToQueue({
-        type: 'DELETE_ALL_DATA',
-        userId: userId
-      });
-      processSyncQueue();
+    const ok = await clearAllData();
+    if (ok) {
+      onClose();
     }
   };
 

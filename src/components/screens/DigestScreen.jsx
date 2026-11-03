@@ -66,7 +66,7 @@ function useDayBuckets(subjects, term) {
 
 // ── Option A: Cumulative hours vs ideal pace ───────────────────────────────
 function ChartA({ data }) {
-  const { days, totalTarget, totalTermDays, daysElapsed } = data;
+  const { days, totalTarget, totalTermDays } = data;
 
   // X axis should scale to the entire term, not just the days elapsed.
   const n = totalTermDays - 1 || 1;

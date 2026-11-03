@@ -2,8 +2,9 @@ import { useState, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { formatRecurrence, formatTodoDeadline, formatCarriedFrom, getDaysCarried } from '../../utils/todoHelpers';
 
-export default function TaskChip({ todo, onComplete, onDelete, onUpdateTitle, isCompleting, isMobile }) {
+export default function TaskChip({ todo, onComplete, onDelete, onDeleteSeries, onUpdateTitle, isCompleting, isMobile }) {
   const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [draft, setDraft] = useState(todo.title);
   const cancelledRef = useRef(false);
 
@@ -16,14 +17,18 @@ export default function TaskChip({ todo, onComplete, onDelete, onUpdateTitle, is
     setIsEditing(true);
   };
 
-  const saveTitle = () => {
+  const saveTitle = async () => {
+    if (isSaving) return;
     if (cancelledRef.current) {
       cancelledRef.current = false;
       return;
     }
     const trimmed = draft.trim();
     if (trimmed && trimmed !== todo.title) {
-      onUpdateTitle(todo.id, trimmed);
+      setIsSaving(true);
+      const saved = await onUpdateTitle(todo.id, trimmed);
+      setIsSaving(false);
+      if (!saved) return;
     }
     setIsEditing(false);
   };
@@ -36,6 +41,28 @@ export default function TaskChip({ todo, onComplete, onDelete, onUpdateTitle, is
       cancelledRef.current = true;
       setIsEditing(false);
     }
+  };
+
+  const handleDelete = e => {
+    e.stopPropagation();
+    if (todo.recurring_group_id && onDeleteSeries) {
+      const choice = window.prompt(
+        "Delete recurring task:\n- Type 'all' to delete the entire series\n- Type 'one' to delete only this instance\n- Click Cancel to keep task",
+        "all"
+      );
+      if (!choice) return;
+      const normalized = choice.trim().toLowerCase();
+      if (normalized === 'all') {
+        onDeleteSeries(todo.recurring_group_id);
+        return;
+      }
+      if (normalized === 'one') {
+        onDelete(todo.id);
+        return;
+      }
+      return;
+    }
+    onDelete(todo.id);
   };
 
   return (
@@ -54,6 +81,7 @@ export default function TaskChip({ todo, onComplete, onDelete, onUpdateTitle, is
             onChange={e => setDraft(e.target.value)}
             onBlur={saveTitle}
             onKeyDown={handleTitleKeyDown}
+            disabled={isSaving}
             autoFocus
             className={`${titleClass} bg-transparent focus:outline-none w-full`}
           />
@@ -103,10 +131,7 @@ export default function TaskChip({ todo, onComplete, onDelete, onUpdateTitle, is
 
         <button
           type="button"
-          onClick={e => {
-            e.stopPropagation();
-            onDelete(todo.id);
-          }}
+          onClick={handleDelete}
           className={`text-text-secondary/20 hover:text-red-400/80 p-0.5 transition-all ${isMobile ? '' : 'opacity-0 group-hover:opacity-100'}`}
           title="Delete task"
         >

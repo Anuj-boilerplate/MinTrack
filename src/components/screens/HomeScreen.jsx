@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useRef, memo } from 'react';
 import { animate } from 'framer-motion';
 import { useStateContext } from '../../contexts/StateContext';
-import { getDaysLeft, hexToRgba, getSessionRangeFromTimes, formatHoursToMins, getAccentColor, getStartOfDay, toLocalDateString } from '../../utils';
+import { getDaysLeft, hexToRgba, formatHoursToMins, getAccentColor, getStartOfDay, toLocalDateString } from '../../utils';
 
 // Card gap (px) between card centers will be measured dynamically from the DOM at runtime.
 
@@ -92,17 +92,17 @@ const SubjectCard = memo(function SubjectCard({
   }, [logHours, logMinutes, logDate, onLogSession, sub.id]);
 
   // ── Edit submit / cancel ──────────────────────────────────────────────────
-  const handleEditSave = useCallback((e) => {
+  const handleEditSave = useCallback(async (e) => {
     e.stopPropagation();
     const parsedTarget = parseFloat(editTarget);
     if (!editName.trim() || isNaN(parsedTarget) || parsedTarget < 1) return;
-    onEditSubject(
+    const ok = await onEditSubject(
       sub.id,
       editName.trim(),
       parsedTarget,
       editDeadline ? new Date(editDeadline).toISOString() : null
     );
-    onEditingChange(false);
+    if (ok) onEditingChange(false);
   }, [editName, editTarget, editDeadline, sub.id, onEditSubject, onEditingChange]);
 
   const handleEditCancel = useCallback((e) => {
@@ -113,11 +113,11 @@ const SubjectCard = memo(function SubjectCard({
     onEditingChange(false);
   }, [sub.name, sub.target_hours, sub.deadline, onEditingChange]);
 
-  const handleDelete = useCallback((e) => {
+  const handleDelete = useCallback(async (e) => {
     e.stopPropagation();
     if (confirm('Delete this goal? This cannot be undone.')) {
-      onDeleteSubject(sub.id);
-      onEditingChange(false);
+      const ok = await onDeleteSubject(sub.id);
+      if (ok) onEditingChange(false);
     }
   }, [sub.id, onDeleteSubject, onEditingChange]);
 
@@ -654,7 +654,7 @@ function computeCardStyle(cardIndex, fractionalActiveIndex, stride) {
 // HomeScreen
 // ---------------------------------------------------------------------------
 export default function HomeScreen({ onOpenModal, onLogSession, onEditSubject, onDeleteSubject, onStartSession, isActive }) {
-  const { state, setSubjectAccentColor, theme } = useStateContext();
+  const { state, setSubjectAccentColor } = useStateContext();
   const [activeIndex, setActiveIndex] = useState(0);
   const [prevSubjects, setPrevSubjects] = useState(state.subjects);
   const [editingSubjectId, setEditingSubjectId] = useState(null); // which card is being edited

@@ -44,6 +44,12 @@ cypress/screenshots/
 cypress/videos/
 playwright-report/
 test-results/
+screenshots/
+
+# Temporary & Scratch Files
+tmp/
+output/
+*.py
 
 # System Files
 Thumbs.db

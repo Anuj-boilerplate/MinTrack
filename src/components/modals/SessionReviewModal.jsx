@@ -14,7 +14,7 @@ export default function SessionReviewModal({ reviewData, onSave, onDiscard, onCo
     if (hasLinkedTask && markComplete && onCompleteTask) {
       onCompleteTask(reviewData.taskId, reviewData.taskIsRecurring);
     }
-    onSave(reviewData);
+    onSave(reviewData, Boolean(hasLinkedTask && markComplete));
   };
 
   return (

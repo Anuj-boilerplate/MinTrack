@@ -14,8 +14,7 @@ import { supabase } from '../lib/supabaseClient';
 import { groupEventsByDate } from '../utils/calendarHelpers';
 import { toLocalDateString } from '../utils';
 import { computeCalendarOps, buildTodoSnapshot } from '../lib/calendarSync';
-import { useUserContext, useStateContext } from './StateContext';
-import { addActionToQueue } from '../lib/syncQueue';
+import { useStateContext } from './StateContext';
 
 const CalendarContext = createContext();
 export const useCalendar = () => useContext(CalendarContext);
@@ -26,8 +25,7 @@ const POLL_INTERVAL_MS = 30 * 1000; // native events mirror within 30s
 const PUSH_DEBOUNCE_MS = 1200; // batch rapid todo mutations into one push
 
 export function CalendarProvider({ children }) {
-  const { userId } = useUserContext();
-  const { state: appState, updateState } = useStateContext();
+  const { state: appState, updateTodoFields } = useStateContext();
   const todos = appState.todos; // always defined — StateProvider seeds with []
 
   const [isConnected, setIsConnected] = useState(false);
@@ -130,19 +128,11 @@ export function CalendarProvider({ children }) {
   }, [fetchWindow]);
 
   // ── Push: mirror todo mutations into Google Calendar ──
-  const persistEventId = useCallback((todoId, googleEventId) => {
-    updateState(prev => ({
-      ...prev,
-      todos: prev.todos.map(t => t.id === todoId ? { ...t, google_event_id: googleEventId } : t)
-    }));
-    if (userId) {
-      addActionToQueue({
-        type: 'UPDATE_TODO',
-        todoId,
-        payload: { google_event_id: googleEventId }
-      });
+  const persistEventId = useCallback(async (todoId, googleEventId) => {
+    if (updateTodoFields) {
+      await updateTodoFields(todoId, { google_event_id: googleEventId });
     }
-  }, [updateState, userId]);
+  }, [updateTodoFields]);
 
   const runPushCycle = useCallback(async (currentTodos) => {
     if (!isConnected || isPushingRef.current) return;
