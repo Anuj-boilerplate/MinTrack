@@ -59,7 +59,7 @@ export function CalendarProvider({ children }) {
       console.warn(
         'MinTrack: VITE_GOOGLE_CLIENT_ID is not set. Add it to your .env file / deployment env vars to use Google Calendar.'
       );
-      alert('Google Calendar is not configured. Set VITE_GOOGLE_CLIENT_ID in your environment, then reload and try again.');
+      setConnectError('Google Calendar is not configured. Add VITE_GOOGLE_CLIENT_ID to your hosting environment and reload.');
       return;
     }
     const params = new URLSearchParams({

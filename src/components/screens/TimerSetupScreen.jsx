@@ -1,5 +1,4 @@
 import { useState, useCallback, useEffect, useRef, memo, useMemo } from 'react';
-import { motion } from 'framer-motion';
 import { useStateContext } from '../../contexts/StateContext';
 import { toLocalDateString } from '../../utils';
 import { getTodosForDate } from '../../utils/todoHelpers';
@@ -28,7 +27,7 @@ const StepperRow = memo(function StepperRow({ label, value, onChange, onBlur, on
 
   return (
     <div className="stepper-row">
-      <span className="stepper-label modal-label">{label}</span>
+      <span className="stepper-label">{label}</span>
       <div className="stepper-control">
         <button
           type="button"
@@ -86,9 +85,9 @@ const PRESET_SUBTITLES = {
 const clamp = (raw, fallback = 1) => Math.max(1, parseInt(raw) || fallback);
 
 // ---------------------------------------------------------------------------
-// PomodoroConfigModal
+// Timer setup screen
 // ---------------------------------------------------------------------------
-export default function PomodoroConfigModal({ onClose, onStart, accentColor = '#c97b6e' }) {
+export default function TimerSetupScreen({ onBack, onStart, accentColor = '#7652ed' }) {
   const { state } = useStateContext();
   const [selectedPreset, setSelectedPreset] = useState('standard');
   const [view, setView] = useState('presets'); // 'presets' | 'custom'
@@ -105,10 +104,6 @@ export default function PomodoroConfigModal({ onClose, onStart, accentColor = '#
       t => !t.is_completed && !t.is_scratched_today
     );
   }, [state.todos, todayStr]);
-
-  const presetsPaneRef = useRef(null);
-  const customPaneRef = useRef(null);
-  const [viewportHeight, setViewportHeight] = useState(350);
 
   const [prevSelectedPreset, setPrevSelectedPreset] = useState(selectedPreset);
   const [prevCustomPreset, setPrevCustomPreset] = useState(customPreset);
@@ -130,20 +125,6 @@ export default function PomodoroConfigModal({ onClose, onStart, accentColor = '#
   }
 
   // ResizeObserver — only re-attaches when the visible pane changes
-  useEffect(() => {
-    const activeRef = view === 'presets' ? presetsPaneRef : customPaneRef;
-    if (!activeRef.current) return;
-
-    const measure = () => {
-      setViewportHeight(activeRef.current.offsetHeight || activeRef.current.scrollHeight);
-    };
-
-    measure();
-    const observer = new ResizeObserver(measure);
-    observer.observe(activeRef.current);
-    return () => observer.disconnect();
-  }, [view, isDropdownOpen]);
-
   // ---------------------------------------------------------------------------
   // Stable adjust/blur handlers — named per-field, empty deps because
   // useState setters are guaranteed stable references across renders.
@@ -195,38 +176,20 @@ export default function PomodoroConfigModal({ onClose, onStart, accentColor = '#
   }, [customPreset]);
 
   return (
-    <motion.div
-      id="pomodoro-modal"
-      className="modal-backdrop"
-      onClick={onClose}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
-    >
-      <motion.div
-        className="modal-pane"
-        onClick={e => e.stopPropagation()}
-        initial={{ scale: 0.82, opacity: 0, y: 12 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.9, opacity: 0, y: 6 }}
-        transition={{ type: 'spring', stiffness: 380, damping: 28, mass: 0.7 }}
-      >
-        <div className="modal-slider-viewport" style={{ height: `${viewportHeight}px` }}>
+    <section className="page-content narrow-page timer-setup-page">
+      <div className="form-panel timer-setup-panel">
+        <div className="setup-slider-viewport">
 
           {/* ── Preset Picker View ── */}
-          <div ref={presetsPaneRef} className={`modal-slide-pane ${view === 'presets' ? 'active-left' : 'inactive-left'}`}>
+          <div className={`setup-slide-pane ${view === 'presets' ? 'active-left' : 'inactive-left'}`}>
             <div className="flex justify-between items-center w-full border-b border-text-primary/10 pb-4 mb-6">
-              <h2 className="modal-heading m-0">Configure Session</h2>
+              <h2 className="setup-heading m-0">Set up Pomodoro</h2>
               <button
                 type="button"
-                onClick={onClose}
-                className="w-8 h-8 rounded-full flex items-center justify-center text-text-secondary/40 hover:text-text-primary hover:bg-text-primary/5 transition-colors focus:outline-none"
+                onClick={onBack}
+                className="quiet-button"
               >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="18" y1="6" x2="6" y2="18"></line>
-                  <line x1="6" y1="6" x2="18" y2="18"></line>
-                </svg>
+                Back
               </button>
             </div>
 
@@ -362,22 +325,22 @@ export default function PomodoroConfigModal({ onClose, onStart, accentColor = '#
                 onClick={handleStartSession}
                 style={{ backgroundColor: `${accentColor}20`, borderColor: `${accentColor}40`, color: accentColor }}
               >
-                Start Session
+                Start Pomodoro
               </button>
             </div>
           </div>
 
           {/* ── Custom Editor View ── */}
-          <div ref={customPaneRef} className={`modal-slide-pane ${view === 'custom' ? 'active-right' : 'inactive-right'}`}>
+          <div className={`setup-slide-pane ${view === 'custom' ? 'active-right' : 'inactive-right'}`}>
             <div className="flex justify-between items-center w-full border-b border-text-primary/10 pb-4 mb-6">
               <div className="flex items-center gap-3">
-                <button type="button" className="modal-back-btn m-0" onClick={handleBackToPresets}>
+                <button type="button" className="setup-back-btn m-0" onClick={handleBackToPresets}>
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="19" y1="12" x2="5" y2="12"></line>
                     <polyline points="12 19 5 12 12 5"></polyline>
                   </svg>
                 </button>
-                <h2 className="modal-heading m-0">Pomodoro Settings</h2>
+                <h2 className="setup-heading m-0">Pomodoro Settings</h2>
               </div>
             </div>
 
@@ -421,7 +384,7 @@ export default function PomodoroConfigModal({ onClose, onStart, accentColor = '#
           </div>
 
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </section>
   );
 }

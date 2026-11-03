@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { calculateDailyTarget, getAccentColor, recalculateSubjectStats, toLocalDateString } from '../utils';
 import { datePart, generateRecurringInstances } from '../utils/todoHelpers';
@@ -10,7 +10,7 @@ const UserContext = createContext(null);
 export const useStateContext = () => useContext(StateContext);
 export const useUserContext = () => useContext(UserContext);
 
-const blank = () => ({ term: null, subjects: [], todos: [], activeSession: null });
+const blank = () => ({ terms: [], activeTermId: null, term: null, subjects: [], todos: [], activeSession: null });
 
 const message = error => error?.message || String(error || 'Save failed. Please try again.');
 
@@ -34,14 +34,13 @@ const asTimer = row => row && ({
 export function StateProvider({ children, session }) {
   const userId = session?.user?.id;
   const [state, setState] = useState(blank);
+  const loadedOnce = useRef(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [mutationError, setMutationError] = useState(null);
   const [today, setToday] = useState(() => toLocalDateString(new Date()));
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark');
   const [smartTaskInput, setSmartTaskInput] = useState(() => localStorage.getItem('smart_task_input') !== 'false');
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [transitionToTheme, setTransitionToTheme] = useState(null);
 
   // Clean up any legacy offline snapshots or tombstones from old architecture
   useEffect(() => {
@@ -58,36 +57,53 @@ export function StateProvider({ children, session }) {
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (!loadedOnce.current) setLoading(true);
     setLoadError(null);
     try {
-      const results = await Promise.all([
+      const [profileResult, termsResult] = await Promise.all([
         supabase.from('profiles').select('*').eq('id', userId).maybeSingle(),
-        supabase.from('subjects').select('*').eq('user_id', userId),
-        supabase.from('todos').select('*').eq('user_id', userId),
-        supabase.from('sessions').select('*'),
-        supabase.from('active_timers').select('*').eq('user_id', userId).maybeSingle(),
+        supabase.from('terms').select('*').eq('user_id', userId).order('start_date', { ascending: false }),
       ]);
-
-      for (const result of results) {
+      if (profileResult.error) throw profileResult.error;
+      if (termsResult.error) throw termsResult.error;
+      const profile = profileResult.data;
+      const terms = termsResult.data || [];
+      const activeTermId = terms.some(term => term.id === profile?.active_term_id)
+        ? profile.active_term_id
+        : terms[0]?.id || null;
+      const activeTerm = terms.find(term => term.id === activeTermId) || null;
+      const [subjectsResult, todosResult, sessionsResult, timerResult] = activeTermId
+        ? await Promise.all([
+            supabase.from('subjects').select('*').eq('user_id', userId).eq('term_id', activeTermId),
+            supabase.from('todos').select('*').eq('user_id', userId).eq('term_id', activeTermId),
+            supabase.from('sessions').select('*'),
+            supabase.from('active_timers').select('*').eq('user_id', userId).maybeSingle(),
+          ])
+        : [
+            { data: [], error: null }, { data: [], error: null }, { data: [], error: null },
+            await supabase.from('active_timers').select('*').eq('user_id', userId).maybeSingle(),
+          ];
+      for (const result of [subjectsResult, todosResult, sessionsResult, timerResult]) {
         if (result.error) throw result.error;
       }
-
-      const [profile, subjects, todos, sessions, timer] = results.map(result => result.data);
+      const subjects = subjectsResult.data || [];
+      const todos = todosResult.data || [];
+      const sessions = sessionsResult.data || [];
 
       setState({
-        term: profile?.term_start_date ? {
-          startDate: profile.term_start_date,
-          endDate: profile.term_end_date
-        } : null,
-        subjects: (subjects || []).map(subject => ({
+        terms,
+        activeTermId,
+        term: activeTerm ? { id: activeTerm.id, name: activeTerm.name,
+          startDate: activeTerm.start_date, endDate: activeTerm.end_date } : null,
+        subjects: subjects.map(subject => ({
           ...subject,
           target_hours: Number(subject.target_hours || 0),
           sessions: (sessions || []).filter(item => item.subject_id === subject.id)
         })).sort((a, b) => a.name.localeCompare(b.name)),
-        todos: todos || [],
-        activeSession: asTimer(timer),
+        todos,
+        activeSession: asTimer(timerResult.data),
       });
+      loadedOnce.current = true;
     } catch (error) {
       setLoadError(message(error));
     } finally {
@@ -135,6 +151,20 @@ export function StateProvider({ children, session }) {
     };
   }, [userId]);
 
+  // A term switch is a profile preference, so propagate it to other open clients.
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`active-term:${userId}`)
+      .on('postgres_changes', {
+        event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${userId}`
+      }, payload => {
+        if ((payload.new?.active_term_id || null) !== state.activeTermId) refresh();
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [refresh, state.activeTermId, userId]);
+
   const run = useCallback(async work => {
     setMutationError(null);
     try {
@@ -168,24 +198,28 @@ export function StateProvider({ children, session }) {
     return data;
   }, [checked, refresh]);
 
-  const saveTerm = useCallback(term => run(async () => {
-    const data = await checked(
-      supabase
-        .from('profiles')
-        .upsert({
-          id: userId,
-          term_start_date: term.startDate,
-          term_end_date: term.endDate
-        })
-        .select()
-        .single()
-    );
-    setState(prev => ({
-      ...prev,
-      term: { startDate: data.term_start_date, endDate: data.term_end_date }
-    }));
+  const createTerm = useCallback(async (name, startDate, endDate) => {
+    setMutationError(null);
+    try {
+      if (state.activeSession) throw new Error('Stop or finish the active timer before creating a term.');
+      const data = await checked(supabase.rpc('create_term_and_switch', {
+        p_name: name, p_start_date: startDate, p_end_date: endDate
+      }));
+      await refresh();
+      return { ok: true, term: data };
+    } catch (error) {
+      const errorMessage = message(error);
+      setMutationError(errorMessage);
+      return { ok: false, error: errorMessage };
+    }
+  }, [checked, refresh, state.activeSession]);
+
+  const switchTerm = useCallback(termId => run(async () => {
+    if (state.activeSession) throw new Error('Stop or finish the active timer before switching terms.');
+    const data = await checked(supabase.rpc('switch_active_term', { p_term_id: termId }));
+    await refresh();
     return data;
-  }), [checked, run, userId]);
+  }), [checked, refresh, run, state.activeSession]);
 
   const addSubject = useCallback((name, target, deadline) => run(async () => {
     const data = await checked(
@@ -194,11 +228,12 @@ export function StateProvider({ children, session }) {
         .insert({
           id: crypto.randomUUID(),
           user_id: userId,
+          term_id: state.activeTermId,
           name,
           target_hours: target,
           valid_hours: 0,
           deadline,
-          accent_color: '#c97b6e'
+          accent_color: '#7652ed'
         })
         .select()
         .single()
@@ -208,7 +243,7 @@ export function StateProvider({ children, session }) {
       subjects: [...prev.subjects, { ...data, sessions: [] }].sort((a, b) => a.name.localeCompare(b.name))
     }));
     return data;
-  }), [checked, run, userId]);
+  }), [checked, run, state.activeTermId, userId]);
 
   const editSubject = useCallback((id, name, target, deadline) => run(async () => {
     const current = state.subjects.find(item => item.id === id);
@@ -266,10 +301,11 @@ export function StateProvider({ children, session }) {
           endDate: termEnd,
           userId,
           maxDays: 90
-        })
+        }).map(row => ({ ...row, term_id: state.activeTermId }))
       : [{
           id: crypto.randomUUID(),
           user_id: userId,
+          term_id: state.activeTermId,
           title,
           note,
           deadline,
@@ -287,7 +323,7 @@ export function StateProvider({ children, session }) {
     const data = await checked(supabase.from('todos').insert(rows).select());
     setState(prev => ({ ...prev, todos: [...prev.todos, ...data] }));
     return data[0]?.id;
-  }), [checked, run, state.term, today, userId]);
+  }), [checked, run, state.activeTermId, state.term, today, userId]);
 
   const updateTodoFields = useCallback((id, fields) => run(async () => {
     const current = state.todos.find(item => item.id === id);
@@ -391,19 +427,11 @@ export function StateProvider({ children, session }) {
     return !prev;
   }), []);
 
-  const toggleTheme = useCallback(() => {
-    if (isTransitioning) return;
-    const next = theme === 'dark' ? 'light' : 'dark';
+  const setThemePreference = useCallback((next) => {
     localStorage.setItem('theme', next);
-    setTransitionToTheme(next);
-    setIsTransitioning(true);
-  }, [isTransitioning, theme]);
-
-  const onTransitionDone = useCallback(() => {
-    setTheme(transitionToTheme);
-    setTransitionToTheme(null);
-    setIsTransitioning(false);
-  }, [transitionToTheme]);
+    document.documentElement.setAttribute('data-theme', next);
+    setTheme(next);
+  }, []);
 
   const mappedSubjects = useMemo(() => state.subjects.map(subject => {
     const stats = recalculateSubjectStats(subject);
@@ -411,7 +439,7 @@ export function StateProvider({ children, session }) {
       ...subject,
       ...stats,
       daily_target: calculateDailyTarget(subject, state.term?.endDate),
-      accentColor: getAccentColor(subject.accent_color || '#c97b6e', theme === 'light')
+      accentColor: getAccentColor(subject.accent_color || '#7652ed', theme === 'light')
     };
   }), [state.subjects, state.term, theme]);
 
@@ -422,7 +450,8 @@ export function StateProvider({ children, session }) {
     mutationError,
     clearMutationError: () => setMutationError(null),
     refresh,
-    saveTerm,
+    createTerm,
+    switchTerm,
     addSubject,
     editSubject,
     deleteSubject,
@@ -440,12 +469,9 @@ export function StateProvider({ children, session }) {
     timerAction,
     clearAllData,
     theme,
-    toggleTheme,
+    setTheme: setThemePreference,
     smartTaskInput,
     toggleSmartTaskInput,
-    isTransitioning,
-    transitionToTheme,
-    onTransitionDone
   };
 
   const userValue = useMemo(() => ({ userId, logout }), [userId, logout]);

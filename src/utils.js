@@ -81,18 +81,18 @@ export function hexToRgba(hex, opacity) {
 }
 
 export function getAccentColor(savedColor, isLight) {
-    const color = savedColor || '#c97b6e';
+    const color = savedColor || '#7652ed';
     if (!isLight) return color;
-    
+
     switch (color.toLowerCase()) {
-        case '#c97b6e': return '#a84551'; // Dusty Rose -> Crimson Ink
-        case '#6b8f71': return '#4d7044'; // Sage Green -> Moss Green Ink
-        case '#c49a3c': return '#99693b'; // Warm Amber -> Sepia Amber Ink
-        case '#5b7a99': return '#3d5e7a'; // Slate Blue -> Slate Blue Ink
-        case '#8b82b8': return '#6946a3'; // Muted Lavender -> Plum Ink
-        case '#b5603a': return '#a8563b'; // Terracotta -> Terracotta Ink
-        case '#4a8c8c': return '#2b7a7a'; // Soft Teal -> Teal Ink
-        case '#b8960c': return '#a27e05'; // Antique Gold -> Saturated Antique Gold
+        case '#c97b6e': return '#a84551';
+        case '#6b8f71': return '#4d7044';
+        case '#c49a3c': return '#99693b';
+        case '#5b7a99': return '#3d5e7a';
+        case '#8b82b8': return '#6946a3';
+        case '#b5603a': return '#a8563b';
+        case '#4a8c8c': return '#2b7a7a';
+        case '#b8960c': return '#a27e05';
         default: return color;
     }
 }
@@ -100,6 +100,8 @@ export function getAccentColor(savedColor, isLight) {
 export function splitSessionAtMidnight(subjectId, startTimeISO, endTimeISO, fallbackDurationMins) {
     const start = new Date(startTimeISO);
     const end = new Date(endTimeISO);
+    const rawDurationMins = Number(fallbackDurationMins);
+    const durationMins = Number.isFinite(rawDurationMins) ? Math.max(0, Math.round(rawDurationMins)) : 0;
 
     // If invalid dates, return a single session with the fallback duration
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
@@ -108,7 +110,7 @@ export function splitSessionAtMidnight(subjectId, startTimeISO, endTimeISO, fall
             subject_id: subjectId,
             start_time: startTimeISO,
             end_time: endTimeISO,
-            duration_minutes: fallbackDurationMins,
+            duration_minutes: durationMins,
             is_discarded: false
         }];
     }
@@ -123,7 +125,7 @@ export function splitSessionAtMidnight(subjectId, startTimeISO, endTimeISO, fall
             subject_id: subjectId,
             start_time: startTimeISO,
             end_time: endTimeISO,
-            duration_minutes: Math.max(0, fallbackDurationMins),
+            duration_minutes: durationMins,
             is_discarded: false
         }];
     }
@@ -142,15 +144,15 @@ export function splitSessionAtMidnight(subjectId, startTimeISO, endTimeISO, fall
             subject_id: subjectId,
             start_time: startTimeISO,
             end_time: endTimeISO,
-            duration_minutes: Math.max(0, fallbackDurationMins),
+            duration_minutes: durationMins,
             is_discarded: false
         }];
     }
 
     // Distribute the true duration (which has breaks subtracted) proportionally
     const ratio = raw1 / rawTotal;
-    const duration1 = Math.round(fallbackDurationMins * ratio);
-    const duration2 = Math.max(0, fallbackDurationMins - duration1); // Ensure exact total sum
+    const duration1 = Math.round(durationMins * ratio);
+    const duration2 = Math.max(0, durationMins - duration1); // Ensure exact total sum
 
     return [
         {

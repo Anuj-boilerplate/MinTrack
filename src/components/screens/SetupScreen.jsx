@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useStateContext } from '../../contexts/StateContext';
-import { parseDateAsLocal } from '../../utils';
 import DatePicker from '../DatePicker';
 
 export default function SetupScreen() {
-  const { saveTerm } = useStateContext();
+  const { createTerm } = useStateContext();
+  const [name, setName] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isSaving, setIsSaving] = useState(false);
@@ -13,17 +13,14 @@ export default function SetupScreen() {
   const handleStartTerm = async (e) => {
     e.preventDefault();
     setError(null);
-    setIsSaving(true);
-    const newTerm = {
-      startDate: parseDateAsLocal(startDate).toISOString(),
-      endDate: parseDateAsLocal(endDate).toISOString()
-    };
-
-    const saved = await saveTerm(newTerm);
-    setIsSaving(false);
-    if (!saved) {
-      setError('Could not save your term dates. Please check your network and try again.');
+    if (endDate < startDate) {
+      setError('The end date must be on or after the start date.');
+      return;
     }
+    setIsSaving(true);
+    const result = await createTerm(name, startDate, endDate);
+    setIsSaving(false);
+    if (!result?.ok) setError(result?.error || 'Could not create your term. Please try again.');
   };
 
   return (
@@ -33,7 +30,7 @@ export default function SetupScreen() {
         <span className="wordmark block mb-8">Mintrack</span>
         
         <h1 className="text-display mb-3 tracking-tight">Welcome</h1>
-        <p className="text-small text-text-secondary mb-12">Let&apos;s set up your academic term to get started.</p>
+        <p className="text-small text-text-secondary mb-12">Create your first term. You can add and switch between terms later.</p>
         
         {error && (
           <div role="alert" className="mb-6 rounded-xl bg-[#4a1c1c] text-[#ffdddd] px-4 py-3 text-sm text-left">
@@ -43,23 +40,28 @@ export default function SetupScreen() {
 
         <form id="term-form" onSubmit={handleStartTerm} className="text-left">
           <div className="mb-9">
+            <label htmlFor="term-name" className="block text-sm text-text-secondary mb-3">Term Name</label>
+            <input id="term-name" className="input-field" required maxLength={80} value={name}
+              onChange={e => setName(e.target.value)} placeholder="e.g. Fall 2026" />
+          </div>
+          <div className="mb-9">
             <label htmlFor="term-start" className="block text-sm text-text-secondary mb-3">Start Date</label>
-            <DatePicker 
-              id="term-start" 
+            <DatePicker
+              id="term-start"
               required 
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              placeholder="e.g. 2026-06-01"
+              placeholder="Select a start date"
             />
           </div>
           <div className="mb-9">
             <label htmlFor="term-end" className="block text-sm text-text-secondary mb-3">End Date</label>
-            <DatePicker 
-              id="term-end" 
+            <DatePicker
+              id="term-end"
               required 
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              placeholder="e.g. 2026-10-31"
+              placeholder="Select an end date"
             />
           </div>
           <button type="submit" className="primary-btn w-full" disabled={isSaving}>

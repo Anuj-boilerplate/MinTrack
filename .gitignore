@@ -66,3 +66,6 @@ supabase/.temp/
 
 # Local opencode tooling config
 .opencode/
+
+# Local agent skills and workspace instructions
+.agents/

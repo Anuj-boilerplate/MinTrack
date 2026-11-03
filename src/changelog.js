@@ -2,6 +2,32 @@
 
 export const CHANGELOG = [
   {
+    version: '2.6.0',
+    date: '2026-11-03',
+    changes: [
+      {
+        title: 'A Workspace for Multiple Terms',
+        description: 'Create and switch between terms from a dedicated screen. Goals and tasks stay organized with the term they belong to.'
+      },
+      {
+        title: 'A Clearer Study Workspace',
+        description: 'A responsive sidebar gives each area its own screen, including Today, Goals, To-Do, Sessions, Insights, Terms, and Settings. Goal editing, session logging, and Pomodoro setup now use dedicated screens.'
+      },
+      {
+        title: 'Goals in Focus',
+        description: 'Browse goals with a focus carousel and visible goal selector. Edit goal details on a dedicated screen, then choose a preset or custom color with a color wheel.'
+      },
+      {
+        title: 'More Reliable Cloud Data',
+        description: 'Term-aware data handling, ownership policies, and cross-device timer updates help keep changes consistent across signed-in devices.'
+      },
+      {
+        title: 'Reliable Pomodoro Logging',
+        description: 'Completed Pomodoro time is rounded to whole minutes before it is saved, preventing fractional durations from being rejected by the database.'
+      }
+    ]
+  },
+  {
     version: '2.5.2',
     date: '2026-09-03',
     changes: [

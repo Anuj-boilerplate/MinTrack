@@ -1,73 +1,71 @@
-import { useCallback, useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { supabase, supabaseConfigError } from './lib/supabaseClient';
 import Auth from './components/Auth';
 import { StateProvider, useStateContext } from './contexts/StateContext';
 import { useTimer } from './hooks/useTimer';
-
+import useAppRoute from './hooks/useAppRoute';
 import SetupScreen from './components/screens/SetupScreen';
+import TodayScreen from './components/screens/TodayScreen';
 import HomeScreen from './components/screens/HomeScreen';
-import TimerScreen from './components/screens/TimerScreen';
-import Navbar from './components/Navbar';
 import TodoScreen from './components/screens/TodoScreen';
 import DigestScreen from './components/screens/DigestScreen';
-
-import AddSubjectModal from './components/modals/AddSubjectModal';
-
-import SettingsModal from './components/modals/SettingsModal';
-import SessionHistoryModal from './components/modals/SessionHistoryModal';
-import PomodoroConfigModal from './components/modals/PomodoroConfigModal';
-import SessionReviewModal from './components/modals/SessionReviewModal';
-import UpdateModal from './components/modals/UpdateModal';
+import GoalFormScreen from './components/screens/GoalFormScreen';
+import GoalEditScreen from './components/screens/GoalEditScreen';
+import GoalColorScreen from './components/screens/GoalColorScreen';
+import GoalSessionLogScreen from './components/screens/GoalSessionLogScreen';
+import TermsScreen from './components/screens/TermsScreen';
+import SettingsScreen from './components/screens/SettingsScreen';
+import SessionsScreen from './components/screens/SessionsScreen';
+import TimerScreen from './components/screens/TimerScreen';
+import TimerSetupScreen from './components/screens/TimerSetupScreen';
+import SessionReviewScreen from './components/screens/SessionReviewScreen';
+import AppSidebar from './components/AppSidebar';
+import AppHeader from './components/AppHeader';
 import { getSessionRangeFromTimes, splitSessionAtMidnight, parseDateAsLocal, getStartOfDay } from './utils';
 import { CalendarProvider } from './contexts/CalendarContext';
-import { APP_VERSION } from './config';
-import { AnimatePresence, motion } from 'framer-motion';
-import TopBar from './components/TopBar';
-import ThemeTransitionOverlay from './components/ThemeTransitionOverlay';
-
 import './index.css';
 
-// The inner app that has access to the StateContext
 function AppContent() {
-  const { state, loading, loadError, mutationError, clearMutationError, refresh,
-    addSubject, editSubject, deleteSubject, insertSessions, deleteSession, timerAction,
-    isTransitioning, transitionToTheme, onTransitionDone } = useStateContext();
+  const {
+    state, loading, loadError, mutationError, clearMutationError, refresh,
+    addSubject, editSubject, deleteSubject, insertSessions, deleteSession, timerAction, setSubjectAccentColor
+  } = useStateContext();
   const timer = useTimer(state, timerAction);
-
-  const [activeModal, setActiveModal] = useState(() => (
-    !localStorage.getItem(`seen_update_${APP_VERSION}`) ? { type: 'update' } : null
-  )); // { type, subjectId }
+  const [route, navigate] = useAppRoute();
+  const [sidebarPinned, setSidebarPinned] = useState(false);
+  const [sidebarHovered, setSidebarHovered] = useState(false);
+  const sidebarExpanded = sidebarPinned || sidebarHovered;
   const [sessionReviewData, setSessionReviewData] = useState(null);
-  const [activeTab, setActiveTab] = useState('goals');
+  const routePath = route.split('?')[0];
+  const queryString = route.includes('?') ? route.slice(route.indexOf('?') + 1) : '';
+  const routeQuery = new URLSearchParams(queryString);
 
   const handleStopSession = useCallback(async () => {
     const activeSession = state.activeSession;
     if (!activeSession || activeSession.status === 'review') return;
-
     const stopped = await timerAction('stop_timer');
     if (!stopped) return;
 
-    const { subjectId } = activeSession;
-    const stoppedSession = { ...activeSession, stoppedAt: stopped.stopped_at,
-      totalPausedMs: Number(stopped.total_paused_ms || 0), isPaused: false };
-    const hours = timer.calculateNetFocusTime(stoppedSession);
-    const sub = state.subjects.find((s) => s.id === subjectId);
-
-    const linkedTask = activeSession.taskId
-      ? state.todos.find(t => t.id === activeSession.taskId)
-      : null;
+    const stoppedSession = {
+      ...activeSession,
+      stoppedAt: stopped.stopped_at,
+      totalPausedMs: Number(stopped.total_paused_ms || 0),
+      isPaused: false
+    };
+    const subject = state.subjects.find(item => item.id === activeSession.subjectId);
+    const task = activeSession.taskId ? state.todos.find(item => item.id === activeSession.taskId) : null;
     setSessionReviewData({
-      subjectId,
-      subjectName: sub?.name || 'Unknown Subject',
-      hours,
+      subjectId: activeSession.subjectId,
+      subjectName: subject?.name || 'Unknown goal',
+      hours: timer.calculateNetFocusTime(stoppedSession),
       startTime: activeSession.startedAt,
       endTime: stopped.stopped_at,
-      taskId: linkedTask ? linkedTask.id : null,
-      taskTitle: linkedTask ? linkedTask.title : null,
-      taskIsRecurring: linkedTask?.recurrence_days?.length > 0 || false
+      taskId: task?.id || null,
+      taskTitle: task?.title || null,
+      taskIsRecurring: Boolean(task?.recurrence_days?.length)
     });
-    setActiveModal({ type: 'sessionReview' });
-  }, [state.activeSession, state.subjects, state.todos, timer, timerAction]);
+    navigate('/timer/review');
+  }, [navigate, state.activeSession, state.subjects, state.todos, timer, timerAction]);
 
   useEffect(() => {
     if (!timer.isDone || !state.activeSession) return;
@@ -75,60 +73,59 @@ function AppContent() {
     handleStopSession();
   }, [handleStopSession, timer.isDone, state.activeSession]);
 
-  const handleOpenModal = useCallback((type, subjectId = null) => {
-    setActiveModal({ type, subjectId });
-  }, []);
-
   useEffect(() => {
     const active = state.activeSession;
     if (active?.status !== 'review' || sessionReviewData) return;
-    const linkedTask = active.taskId ? state.todos.find(t => t.id === active.taskId) : null;
-    const subject = state.subjects.find(s => s.id === active.subjectId);
+    const task = active.taskId ? state.todos.find(item => item.id === active.taskId) : null;
+    const subject = state.subjects.find(item => item.id === active.subjectId);
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setSessionReviewData({
       subjectId: active.subjectId,
-      subjectName: subject?.name || 'Unknown Subject',
+      subjectName: subject?.name || 'Unknown goal',
       hours: timer.calculateNetFocusTime(active),
       startTime: active.startedAt,
       endTime: active.stoppedAt,
-      taskId: linkedTask?.id || null,
-      taskTitle: linkedTask?.title || null,
-      taskIsRecurring: Boolean(linkedTask?.recurrence_days?.length)
+      taskId: task?.id || null,
+      taskTitle: task?.title || null,
+      taskIsRecurring: Boolean(task?.recurrence_days?.length)
     });
-    setActiveModal({ type: 'sessionReview' });
-  }, [state.activeSession, state.todos, state.subjects, sessionReviewData, timer]);
+    navigate('/timer/review');
+  }, [navigate, sessionReviewData, state.activeSession, state.subjects, state.todos, timer]);
+
+  const handleOpenScreen = useCallback((type, subjectId = null) => {
+    if (type === 'addSubject') navigate('/goals/new');
+    if (type === 'editGoal' && subjectId) navigate(`/goals/edit?goal=${encodeURIComponent(subjectId)}`);
+    if (type === 'logSession' && subjectId) navigate(`/sessions/new?goal=${encodeURIComponent(subjectId)}`);
+    if (type === 'pomodoro' && subjectId) navigate(`/timer/setup?goal=${subjectId}`);
+    if (type === 'sessionHistory') navigate('/sessions');
+    if (type === 'settings') navigate('/settings');
+  }, [navigate]);
 
   const handleAddSubject = async (name, target, deadline) => {
-    if (await addSubject(name, target, deadline)) setActiveModal(null);
+    const saved = await addSubject(name, target, deadline);
+    if (saved) navigate('/goals');
+    return saved;
   };
 
   const handleEditSubject = async (id, name, target, deadline) => {
-    const res = await editSubject(id, name, target, deadline);
-    if (res) setActiveModal(null);
-    return res;
+    const saved = await editSubject(id, name, target, deadline);
+    if (saved) navigate('/goals');
+    return saved;
   };
-
-  const handleDeleteSubject = async (id) => {
-    if (!confirm('Are you sure you want to delete this goal and its sessions?')) return false;
-    const res = await deleteSubject(id);
-    if (res) setActiveModal(null);
-    return res;
+  const handleDeleteSubject = async id => {
+    const deleted = await deleteSubject(id);
+    if (deleted) navigate('/goals');
+    return deleted;
   };
+  const handleSaveGoalColor = (id, color) => setSubjectAccentColor(id, color);
 
   const handleManualLog = async (subjectId, startStr, endStr, durationMins, dateStr) => {
     const refDate = dateStr ? parseDateAsLocal(dateStr) : getStartOfDay(new Date());
     const range = getSessionRangeFromTimes(startStr, endStr, refDate);
-    let startTimeISO, endTimeISO;
-    if (range) {
-      startTimeISO = range.start.toISOString();
-      endTimeISO = range.end.toISOString();
-    } else {
-      const start = getStartOfDay(refDate);
-      startTimeISO = start.toISOString();
-      endTimeISO = new Date(start.getTime() + durationMins * 60000).toISOString();
-    }
-    const rows = splitSessionAtMidnight(subjectId, startTimeISO, endTimeISO, durationMins);
-    if (await insertSessions(rows)) setActiveModal(null);
+    const start = range?.start || getStartOfDay(refDate);
+    const end = range?.end || new Date(start.getTime() + durationMins * 60000);
+    const rows = splitSessionAtMidnight(subjectId, start.toISOString(), end.toISOString(), durationMins);
+    return insertSessions(rows);
   };
 
   const handleSaveSession = async (data, markTaskComplete) => {
@@ -142,190 +139,87 @@ function AppContent() {
     });
     if (!saved) return;
     setSessionReviewData(null);
-    setActiveModal(null);
+    navigate('/today');
     await refresh();
   };
 
   const handleDiscardSession = async () => {
     if (await timerAction('clear_timer')) {
       setSessionReviewData(null);
-      setActiveModal(null);
+      navigate('/today');
     }
   };
 
-  const handleDeleteSession = async (_subjectId, sessionId) => {
-    await deleteSession(sessionId);
-  };
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-text-secondary">Loading your study data…</div>;
-  if (loadError) return <div className="min-h-screen flex flex-col items-center justify-center gap-4 px-6 text-center">
-    <p className="text-text-primary">Could not load your study data: {loadError}</p>
-    <button className="primary-btn" onClick={refresh}>Retry</button>
-  </div>;
+  useEffect(() => {
+    if (routePath === '/timer' && !state.activeSession) navigate('/goals', { replace: true });
+  }, [navigate, routePath, state.activeSession]);
 
-  const currentModal = activeModal?.type;
-  const activeSubjectData = activeModal?.subjectId ? state.subjects.find(s => s.id === activeModal.subjectId) : null;
-  const activeAccentColor = activeSubjectData?.accentColor || '#c97b6e';
+  useEffect(() => {
+    if (routePath === '/timer/review' && !state.activeSession && !sessionReviewData) navigate('/today', { replace: true });
+  }, [navigate, routePath, sessionReviewData, state.activeSession]);
+
+  if (loading) return <div className="app-loading" role="status">Loading your study space…</div>;
+  if (loadError) return <div className="app-loading app-load-error"><p>Could not load your study data: {loadError}</p><button className="primary-action" onClick={refresh}>Retry</button></div>;
+
+  const goalId = routeQuery.get('goal');
+  const goal = state.subjects.find(subject => subject.id === goalId);
+  const page = !state.term ? <SetupScreen /> : (() => {
+    if (routePath === '/today') return <TodayScreen navigate={navigate} />;
+    if (routePath === '/goals') return <HomeScreen onOpenScreen={handleOpenScreen} />;
+    if (routePath === '/goals/new') return <GoalFormScreen onSave={handleAddSubject} onCancel={() => navigate('/goals')} />;
+    if (routePath === '/goals/edit') return <GoalEditScreen goal={goal} onSave={handleEditSubject} onDelete={handleDeleteSubject} onChooseColor={id => navigate(`/goals/color?goal=${encodeURIComponent(id)}`)} onBack={() => navigate('/goals')} />;
+    if (routePath === '/goals/color' || routePath === '/goals/color/custom') return <GoalColorScreen goal={goal} isCustom={routePath.endsWith('/custom')} onSaveColor={handleSaveGoalColor} onBack={() => navigate(routePath.endsWith('/custom') ? `/goals/color?goal=${encodeURIComponent(goalId || '')}` : `/goals/edit?goal=${encodeURIComponent(goalId || '')}`)} onDone={() => navigate(`/goals/edit?goal=${encodeURIComponent(goalId || '')}`)} onCustom={() => navigate(`/goals/color/custom?goal=${encodeURIComponent(goalId || '')}`)} />;
+    if (routePath === '/sessions/new') return <GoalSessionLogScreen goal={goal} onSave={async (id, durationMins, dateStr) => {
+      const saved = await handleManualLog(id, undefined, undefined, durationMins, dateStr);
+      if (saved) navigate('/goals');
+      return saved;
+    }} onBack={() => navigate('/goals')} />;
+    if (routePath === '/tasks') return <TodoScreen isActive />;
+    if (routePath === '/sessions') return <SessionsScreen onDeleteSession={deleteSession} />;
+    if (routePath === '/insights') return <DigestScreen />;
+    if (routePath === '/terms') return <TermsScreen />;
+    if (routePath === '/settings') return <SettingsScreen />;
+    if (routePath === '/timer/setup') {
+      if (!goal) return <div className="empty-state"><h2>Select a goal first</h2><button className="text-action" type="button" onClick={() => navigate('/goals')}>Browse goals</button></div>;
+      return <TimerSetupScreen onBack={() => navigate('/goals')} accentColor={goal.accentColor} onStart={async config => { if (await timer.startFocusSession(goal.id, config)) navigate('/timer'); }} />;
+    }
+    if (routePath === '/timer/review') {
+      return sessionReviewData
+        ? <SessionReviewScreen reviewData={sessionReviewData} accentColor={goal?.accentColor} onBack={() => navigate('/today')} onSave={handleSaveSession} onDiscard={handleDiscardSession} />
+        : <div className="page-content"><p>Loading session review…</p></div>;
+    }
+    if (routePath === '/timer' && state.activeSession) return <TimerScreen timer={timer} onStop={handleStopSession} />;
+    return <div className="empty-state"><h2>Page not found</h2><button className="text-action" type="button" onClick={() => navigate('/today')}>Go to Today</button></div>;
+  })();
+
+  if (!state.term) return <div className="workspace-onboarding">{page}</div>;
 
   return (
-    <div className={`app-shell ${currentModal ? 'modal-active' : ''}`}>
-      {mutationError && <div role="alert" className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] max-w-[90vw] rounded-xl bg-[#4a1c1c] text-[#ffdddd] px-5 py-3 text-sm shadow-xl">
-        {mutationError} <button className="ml-3 underline" onClick={clearMutationError}>Dismiss</button>
-      </div>}
-      {!state.term ? (
-        <SetupScreen />
-      ) : (
-        <>
-          <TopBar onOpenSettings={() => handleOpenModal('settings')} />
-          <AnimatePresence mode="wait">
-            {state.activeSession && state.activeSession.status !== 'review' ? (
-              <TimerScreen key="timer-screen" timer={timer} onStop={handleStopSession} />
-            ) : (
-              <div key="main-app" className="contents">
-                <motion.div
-                  className="flex-grow flex flex-col w-full"
-                  initial={{ opacity: 0, scale: 0.95 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.95 }}
-                  transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                >
-                  <div className={activeTab === 'goals' ? 'flex-grow flex flex-col w-full' : 'hidden'}>
-                    <HomeScreen
-                      isActive={activeTab === 'goals'}
-                      onOpenModal={handleOpenModal}
-                      onLogSession={handleManualLog}
-                      onEditSubject={handleEditSubject}
-                      onDeleteSubject={handleDeleteSubject}
-                    />
-                  </div>
-                  <div className={activeTab === 'todo' ? 'flex-grow flex flex-col w-full' : 'hidden'}>
-                    <TodoScreen isActive={activeTab === 'todo'} />
-                  </div>
-                  <div className={activeTab === 'analytics' ? 'flex-grow flex flex-col w-full' : 'hidden'}>
-                    <DigestScreen />
-                  </div>
-                </motion.div>
-                <Navbar activeTab={activeTab} onTabChange={setActiveTab} />
-              </div>
-            )}
-          </AnimatePresence>
-        </>
-      )}
-
-      {isTransitioning && (
-        <ThemeTransitionOverlay targetTheme={transitionToTheme} onDone={onTransitionDone} />
-      )}
-
-      {/* Modals */}
-      <AnimatePresence mode="wait">
-        {currentModal === 'addSubject' && (
-          <AddSubjectModal key="addSubject" onClose={() => setActiveModal(null)} onAdd={handleAddSubject} />
-        )}
-
-        {currentModal === 'settings' && (
-          <SettingsModal
-            key="settings"
-            onClose={() => setActiveModal(null)}
-            onOpenHistory={() => setActiveModal({ type: 'sessionHistory' })}
-          />
-        )}
-
-        {currentModal === 'sessionHistory' && (
-          <SessionHistoryModal
-            key="sessionHistory"
-            subjects={state.subjects}
-            onClose={() => setActiveModal(null)}
-            onDeleteSession={handleDeleteSession}
-          />
-        )}
-
-        {currentModal === 'pomodoro' && (
-          <PomodoroConfigModal
-            key="pomodoro"
-            accentColor={activeAccentColor}
-            onClose={() => setActiveModal(null)}
-            onStart={async (config) => {
-              if (await timer.startFocusSession(activeModal.subjectId, config)) setActiveModal(null);
-            }}
-          />
-        )}
-
-        {currentModal === 'sessionReview' && (
-          <SessionReviewModal
-            key="sessionReview"
-            reviewData={sessionReviewData}
-            accentColor={activeAccentColor}
-            onSave={handleSaveSession}
-            onDiscard={handleDiscardSession}
-          />
-        )}
-
-        {currentModal === 'update' && (
-          <UpdateModal
-            key="update"
-            onClose={() => {
-              localStorage.setItem(`seen_update_${APP_VERSION}`, "true");
-              setActiveModal(null);
-            }}
-          />
-        )}
-      </AnimatePresence>
+    <div className={`workspace-shell${sidebarExpanded ? ' is-sidebar-expanded' : ''}`}>
+      <AppHeader route={route} navigate={navigate} />
+      <AppSidebar route={route} navigate={navigate} expanded={sidebarExpanded} pinned={sidebarPinned} onExpandedChange={setSidebarPinned} onHoverChange={setSidebarHovered} />
+      {mutationError && <div role="alert" className="workspace-toast">{mutationError}<button type="button" onClick={clearMutationError}>Dismiss</button></div>}
+      <div className="workspace-main">
+        <main className="workspace-content" key={routePath}>{page}</main>
+      </div>
     </div>
   );
 }
 
-// Wrapper to handle Auth and State Provider
 export default function App() {
   const [session, setSession] = useState(null);
 
   useEffect(() => {
-    if (supabaseConfigError || !supabase) return;
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-
-    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    // Theme initialization
+    if (supabaseConfigError || !supabase) return undefined;
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => setSession(currentSession));
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, currentSession) => setSession(currentSession));
     const savedTheme = localStorage.getItem('theme') || 'dark';
     document.documentElement.setAttribute('data-theme', savedTheme);
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
+    return () => authListener.subscription.unsubscribe();
   }, []);
 
-  if (supabaseConfigError) {
-    return (
-      <div className="min-h-screen w-full flex items-center justify-center p-8">
-        <div className="glass-panel w-full max-w-[580px]">
-          <h1 className="text-display mb-5 text-text-primary tracking-tight">MinTrack needs configuration</h1>
-          <p className="text-text-secondary mb-9">
-            {supabaseConfigError}
-          </p>
-          <div className="text-sm text-text-secondary space-y-3">
-            <p>Add these in Netlify under Site configuration â†’ Environment variables:</p>
-            <p><code>VITE_SUPABASE_URL</code></p>
-            <p><code>VITE_SUPABASE_ANON_KEY</code></p>
-            <p>Then trigger a fresh deploy.</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  if (supabaseConfigError) return <div className="app-loading"><div className="form-panel"><h1 className="page-title">MinTrack needs configuration</h1><p>{supabaseConfigError}</p><p>Add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> in your hosting environment, then redeploy.</p></div></div>;
+  if (!session) return <Auth />;
 
-  if (!session) {
-    return <Auth />;
-  }
-
-  return (
-    <StateProvider session={session}>
-      <CalendarProvider>
-        <AppContent />
-      </CalendarProvider>
-    </StateProvider>
-  );
+  return <StateProvider session={session}><CalendarProvider><AppContent /></CalendarProvider></StateProvider>;
 }
-

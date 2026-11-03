@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { formatHoursToMins } from '../../utils';
 import { motion } from 'framer-motion';
 
-export default function SessionReviewModal({ reviewData, onSave, onDiscard, onCompleteTask, accentColor = '#c97b6e' }) {
+export default function SessionReviewScreen({ reviewData, onSave, onDiscard, onCompleteTask, accentColor = '#7652ed', onBack }) {
   const hasLinkedTask = Boolean(reviewData?.taskId && reviewData?.taskTitle);
   // Default to checked so the common path (task was the focus of the session) is one click
   const [markComplete, setMarkComplete] = useState(hasLinkedTask);
@@ -18,22 +18,10 @@ export default function SessionReviewModal({ reviewData, onSave, onDiscard, onCo
   };
 
   return (
-    <motion.div
-      id="session-review-modal"
-      className="modal-backdrop"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.2 }}
-    >
-      <motion.div
-        className="modal-pane text-center"
-        initial={{ scale: 0.82, opacity: 0, y: 12 }}
-        animate={{ scale: 1, opacity: 1, y: 0 }}
-        exit={{ scale: 0.9, opacity: 0, y: 6 }}
-        transition={{ type: 'spring', stiffness: 380, damping: 28, mass: 0.7 }}
-      >
-        <div className="font-serif text-[52px] font-normal text-text-primary/90 leading-none" id="review-tracked-time">
+    <section className="page-content narrow-page">
+      <div className="form-panel session-review-panel">
+        <div className="page-heading-row"><div><p className="eyebrow">Session complete</p><h1 className="page-title">Review your time</h1><p className="page-description">Confirm where this focus session should be logged.</p></div><button className="quiet-button" type="button" onClick={onBack}>Back</button></div>
+        <div className="review-tracked-time" id="review-tracked-time">
           {formatHoursToMins(reviewData.hours)}
         </div>
 
@@ -86,7 +74,7 @@ export default function SessionReviewModal({ reviewData, onSave, onDiscard, onCo
           </motion.button>
         )}
 
-        <div className="flex flex-col gap-3 mt-12 w-full">
+        <div className="flex flex-col gap-3 mt-8 w-full">
           <button
             id="save-session-btn"
             className="px-8 py-3 rounded-full text-sm font-medium transition-colors border w-full"
@@ -103,7 +91,7 @@ export default function SessionReviewModal({ reviewData, onSave, onDiscard, onCo
             Discard
           </button>
         </div>
-      </motion.div>
-    </motion.div>
+      </div>
+    </section>
   );
 }

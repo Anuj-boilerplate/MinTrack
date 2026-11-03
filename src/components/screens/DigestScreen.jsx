@@ -139,6 +139,7 @@ function ChartA({ data }) {
 
       {/* Ideal line — dashed, muted */}
       <path
+        className="digest-chart-ideal"
         d={toPath(idealPts)}
         fill="none"
         stroke="currentColor"
@@ -149,6 +150,7 @@ function ChartA({ data }) {
 
       {/* Actual line — solid */}
       <path
+        className="digest-chart-actual"
         d={toPath(actualPts)}
         fill="none"
         stroke="currentColor"

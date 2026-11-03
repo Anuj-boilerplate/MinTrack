@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import { useStateContext } from '../../contexts/StateContext';
 import { motion } from 'framer-motion';
 import { hexToRgba } from '../../utils';
@@ -8,30 +7,7 @@ export default function TimerScreen({ timer, onStop }) {
 
   const activeSubject = state.subjects.find((subject) => subject.id === state.activeSession?.subjectId);
   const activeTask = state.todos.find((todo) => todo.id === state.activeSession?.taskId);
-  const accentColor = activeSubject?.accentColor || '#c97b6e';
-
-  // Subliminal background color shift by phase
-  useEffect(() => {
-    const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-    const isFocus = timer.phaseInfo.phase === 'Focus Phase';
-
-    let mainBg, secBg;
-    if (isFocus) {
-      mainBg = isLight ? '#e5ecf0' : '#0a0d14'; // cooler blue-grey paper
-      secBg = isLight ? '#d9e3e8' : '#0f121b';
-    } else {
-      mainBg = isLight ? '#f4ebd0' : '#140c08'; // warmer yellow-tan paper
-      secBg = isLight ? '#e9dfc4' : '#1b120c';
-    }
-
-    document.documentElement.style.setProperty('--dynamic-bg-main', mainBg);
-    document.documentElement.style.setProperty('--dynamic-bg-secondary', secBg);
-
-    return () => {
-      document.documentElement.style.removeProperty('--dynamic-bg-main');
-      document.documentElement.style.removeProperty('--dynamic-bg-secondary');
-    };
-  }, [timer.phaseInfo.phase]);
+  const accentColor = activeSubject?.accentColor || '#7652ed';
 
   return (
     <motion.div
@@ -47,7 +23,7 @@ export default function TimerScreen({ timer, onStop }) {
         {/* Subject Name */}
         <h2 
           id="timer-subject-name" 
-          className="font-serif text-[28px] font-normal leading-tight tracking-wide"
+          className="font-serif text-[20px] font-medium leading-tight tracking-normal"
           style={{ color: accentColor }}
         >
           {activeSubject?.name || 'Subject Name'}
