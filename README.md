@@ -28,12 +28,17 @@ MinTrack is a React + Vite study tracker for planning an academic term, tracking
 npm install
 ```
 
-2. Copy `.env.example` to `.env` and set:
+2. Copy `.env.example` to `.env` and set the public client configuration:
 
 ```bash
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
+VITE_GOOGLE_CLIENT_ID=...
 ```
+
+Values with the `VITE_` prefix are included in browser assets by Vite. Use only the Supabase anon/publishable key and Google OAuth client ID here; never put a Supabase service-role key, database password, or Google OAuth client secret in a `VITE_` variable. In Netlify, keep these client configuration variables unmarked as secrets because they are intentionally public.
+
+If Netlify's secret scanner flags these public values, add a site-level `SECRETS_SCAN_OMIT_KEYS` variable with `VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_GOOGLE_CLIENT_ID`. If the deploy log identifies Smart Detection instead, allowlist only the specific public values with `SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES`. Keep scanning enabled for all other values and files.
 
 3. Start the dev server:
 

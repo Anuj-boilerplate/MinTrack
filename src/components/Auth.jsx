@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import MinTrackMark from './MinTrackMark'
 
 export default function Auth() {
   const [loading, setLoading] = useState(false)
@@ -44,15 +45,54 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-8">
-      <div className="glass-panel w-full max-w-[420px] text-center animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
-        <h1 className="text-3xl font-bold mb-3 font-heading text-text-primary tracking-tight">MinTrack Cloud Sync</h1>
-        <p className="text-sm text-text-secondary mb-12">Tie your week together with a magic link — or use Google.</p>
-        
+      <div className="glass-panel auth-card w-full max-w-[500px] text-center animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
+        <div className="auth-brand">
+          <MinTrackMark size={44} />
+          <h1 className="text-3xl font-bold mb-10 font-heading text-text-primary tracking-tight">Welcome Back</h1>
+        </div>
+        <form onSubmit={handleLogin} className="flex flex-col gap-6 text-left">
+          <div>
+            <label htmlFor="email-input" className="block text-sm text-text-secondary mb-3">Email Address</label>
+            <input
+              id="email-input"
+              className="input-field"
+              type="email"
+              placeholder="you@university.edu"
+              value={email}
+              required={true}
+              onChange={(e) => setEmail(e.target.value)}
+            />
+          </div>
+          
+          <button 
+            className={`primary-btn auth-action magic-link-action w-full mt-6 flex justify-center items-center h-[56px] ${loading ? 'opacity-70 cursor-not-allowed hover:translate-y-0' : ''}`}
+            disabled={loading}
+          >
+            {loading ? (
+              <span className="flex items-center gap-3">
+                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Sending...
+              </span>
+            ) : (
+              <span>Send Magic Link</span>
+            )}
+          </button>
+        </form>
+
+        <div className="flex items-center gap-4 my-8">
+          <div className="flex-1 h-px bg-text-primary/10"></div>
+          <span className="text-[11px] uppercase tracking-widest text-text-secondary/50">or</span>
+          <div className="flex-1 h-px bg-text-primary/10"></div>
+        </div>
+
         <button
           type="button"
           onClick={handleGoogleLogin}
           disabled={googleLoading}
-          className={`w-full flex items-center justify-center gap-3 px-8 py-3.5 rounded-full text-sm font-medium border border-text-primary/10 bg-text-primary/[0.03] hover:bg-text-primary/[0.07] transition-all text-text-primary/85 ${googleLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
+          className={`auth-action google-auth-action w-full flex items-center justify-center gap-3 px-8 py-3.5 text-sm font-medium border bg-transparent text-text-secondary transition-all hover:bg-text-primary/[0.08] hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent ${googleLoading ? 'opacity-60 cursor-not-allowed' : ''}`}
         >
           {googleLoading ? (
             <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -69,44 +109,6 @@ export default function Auth() {
           )}
           {googleLoading ? 'Redirecting...' : 'Continue with Google'}
         </button>
-
-        <div className="flex items-center gap-4 my-8">
-          <div className="flex-1 h-px bg-text-primary/10"></div>
-          <span className="text-[11px] uppercase tracking-widest text-text-secondary/40">or</span>
-          <div className="flex-1 h-px bg-text-primary/10"></div>
-        </div>
-
-        <form onSubmit={handleLogin} className="flex flex-col gap-6 text-left">
-          <div>
-            <label htmlFor="email-input" className="block text-sm text-text-secondary mb-3">Email Address</label>
-            <input
-              id="email-input"
-              className="input-field"
-              type="email"
-              placeholder="you@university.edu"
-              value={email}
-              required={true}
-              onChange={(e) => setEmail(e.target.value)}
-            />
-          </div>
-          
-          <button 
-            className={`primary-btn w-full mt-6 flex justify-center items-center h-[56px] ${loading ? 'opacity-70 cursor-not-allowed hover:translate-y-0' : ''}`} 
-            disabled={loading}
-          >
-            {loading ? (
-              <span className="flex items-center gap-3">
-                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                </svg>
-                Sending...
-              </span>
-            ) : (
-              <span>Send Magic Link</span>
-            )}
-          </button>
-        </form>
 
         {status.message && (
           <div className={`mt-9 p-8 rounded-lg text-sm font-medium ${status.type === 'error' ? 'bg-[rgba(239,68,68,0.1)] text-brand-danger border border-[rgba(239,68,68,0.2)]' : 'bg-[rgba(16,185,129,0.1)] text-brand-success border border-[rgba(16,185,129,0.2)]'}`}>
