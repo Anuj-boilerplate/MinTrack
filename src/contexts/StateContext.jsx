@@ -302,9 +302,10 @@ export function StateProvider({ children, session }) {
           userId,
           maxDays: 90
         }).map(row => {
-          const { deadline: instanceDeadline, ...task } = row;
+          const { note: instanceNote, deadline: instanceDeadline, ...task } = row;
           return {
             ...task,
+            ...(instanceNote ? { note: instanceNote } : {}),
             ...(instanceDeadline ? { deadline: instanceDeadline } : {}),
             term_id: state.activeTermId
           };
@@ -314,7 +315,7 @@ export function StateProvider({ children, session }) {
           user_id: userId,
           term_id: state.activeTermId,
           title,
-          note,
+          ...(note ? { note } : {}),
           ...(deadline ? { deadline } : {}),
           scheduled_date: targetDate,
           is_completed: false,
