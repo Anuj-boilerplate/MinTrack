@@ -301,14 +301,21 @@ export function StateProvider({ children, session }) {
           endDate: termEnd,
           userId,
           maxDays: 90
-        }).map(row => ({ ...row, term_id: state.activeTermId }))
+        }).map(row => {
+          const { deadline: instanceDeadline, ...task } = row;
+          return {
+            ...task,
+            ...(instanceDeadline ? { deadline: instanceDeadline } : {}),
+            term_id: state.activeTermId
+          };
+        })
       : [{
           id: crypto.randomUUID(),
           user_id: userId,
           term_id: state.activeTermId,
           title,
           note,
-          deadline,
+          ...(deadline ? { deadline } : {}),
           scheduled_date: targetDate,
           is_completed: false,
           is_scratched_today: false,
