@@ -55,7 +55,6 @@ ehthumbs.db
 Desktop.ini
 
 # Hosting & Deployment
-.netlify
 .vercel
 .firebase
 

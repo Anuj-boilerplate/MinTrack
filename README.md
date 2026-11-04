@@ -36,9 +36,9 @@ VITE_SUPABASE_ANON_KEY=...
 VITE_GOOGLE_CLIENT_ID=...
 ```
 
-Values with the `VITE_` prefix are included in browser assets by Vite. Use only the Supabase anon/publishable key and Google OAuth client ID here; never put a Supabase service-role key, database password, or Google OAuth client secret in a `VITE_` variable. In Netlify, keep these client configuration variables unmarked as secrets because they are intentionally public.
+Values with the `VITE_` prefix are included in browser assets by Vite. Use only the Supabase anon/publishable key and Google OAuth client ID here; never put a Supabase service-role key, database password, or Google OAuth client secret in a `VITE_` variable. In Vercel, add these values under Project Settings → Environment Variables for the environments you use, then redeploy.
 
-If Netlify's secret scanner flags these public values, add a site-level `SECRETS_SCAN_OMIT_KEYS` variable with `VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_GOOGLE_CLIENT_ID`. If the deploy log identifies Smart Detection instead, allowlist only the specific public values with `SECRETS_SCAN_SMART_DETECTION_OMIT_VALUES`. Keep scanning enabled for all other values and files.
+The production site is `https://mintracking.vercel.app`. Add it to the allowed redirect URLs in Supabase Auth so magic links can return to the deployed app. The app builds auth redirects from the current site origin.
 
 3. Start the dev server:
 
