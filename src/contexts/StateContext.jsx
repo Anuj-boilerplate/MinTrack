@@ -221,6 +221,39 @@ export function StateProvider({ children, session }) {
     return data;
   }), [checked, refresh, run, state.activeSession]);
 
+  const updateTerm = useCallback(async (termId, name, startDate, endDate) => {
+    setMutationError(null);
+    try {
+      if (state.activeSession) throw new Error('Stop or finish the active timer before editing a term.');
+      const term = await checked(supabase.rpc('update_term', {
+        p_term_id: termId,
+        p_name: name,
+        p_start_date: startDate,
+        p_end_date: endDate
+      }));
+      await refresh();
+      return { ok: true, term };
+    } catch (error) {
+      const errorMessage = message(error);
+      setMutationError(errorMessage);
+      return { ok: false, error: errorMessage };
+    }
+  }, [checked, refresh, state.activeSession]);
+
+  const deleteTerm = useCallback(async termId => {
+    setMutationError(null);
+    try {
+      if (state.activeSession) throw new Error('Stop or finish the active timer before deleting a term.');
+      await checked(supabase.rpc('delete_term', { p_term_id: termId }));
+      await refresh();
+      return { ok: true };
+    } catch (error) {
+      const errorMessage = message(error);
+      setMutationError(errorMessage);
+      return { ok: false, error: errorMessage };
+    }
+  }, [checked, refresh, state.activeSession]);
+
   const addSubject = useCallback((name, target, deadline) => run(async () => {
     const data = await checked(
       supabase
@@ -323,8 +356,7 @@ export function StateProvider({ children, session }) {
           recurrence_days: null,
           recurring_group_id: null,
           display_order: 0,
-          original_date: null,
-          google_event_id: null
+          original_date: null
         }];
 
     if (!rows.length) throw new Error('No tasks fall within the selected dates.');
@@ -460,6 +492,8 @@ export function StateProvider({ children, session }) {
     refresh,
     createTerm,
     switchTerm,
+    updateTerm,
+    deleteTerm,
     addSubject,
     editSubject,
     deleteSubject,

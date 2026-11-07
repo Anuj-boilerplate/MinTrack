@@ -7,7 +7,6 @@ import useAppRoute from './hooks/useAppRoute';
 import SetupScreen from './components/screens/SetupScreen';
 import TodayScreen from './components/screens/TodayScreen';
 import HomeScreen from './components/screens/HomeScreen';
-import TodoScreen from './components/screens/TodoScreen';
 import DigestScreen from './components/screens/DigestScreen';
 import GoalFormScreen from './components/screens/GoalFormScreen';
 import GoalEditScreen from './components/screens/GoalEditScreen';
@@ -22,7 +21,6 @@ import SessionReviewScreen from './components/screens/SessionReviewScreen';
 import AppSidebar from './components/AppSidebar';
 import AppHeader from './components/AppHeader';
 import { getSessionRangeFromTimes, splitSessionAtMidnight, parseDateAsLocal, getStartOfDay } from './utils';
-import { CalendarProvider } from './contexts/CalendarContext';
 import './index.css';
 
 function AppContent() {
@@ -155,6 +153,10 @@ function AppContent() {
   }, [navigate, routePath, state.activeSession]);
 
   useEffect(() => {
+    if (routePath === '/tasks') navigate('/today', { replace: true });
+  }, [navigate, routePath]);
+
+  useEffect(() => {
     if (routePath === '/timer/review' && !state.activeSession && !sessionReviewData) navigate('/today', { replace: true });
   }, [navigate, routePath, sessionReviewData, state.activeSession]);
 
@@ -164,7 +166,7 @@ function AppContent() {
   const goalId = routeQuery.get('goal');
   const goal = state.subjects.find(subject => subject.id === goalId);
   const page = !state.term ? <SetupScreen /> : (() => {
-    if (routePath === '/today') return <TodayScreen navigate={navigate} />;
+    if (routePath === '/today' || routePath === '/tasks') return <TodayScreen navigate={navigate} />;
     if (routePath === '/goals') return <HomeScreen onOpenScreen={handleOpenScreen} />;
     if (routePath === '/goals/new') return <GoalFormScreen onSave={handleAddSubject} onCancel={() => navigate('/goals')} />;
     if (routePath === '/goals/edit') return <GoalEditScreen goal={goal} onSave={handleEditSubject} onDelete={handleDeleteSubject} onChooseColor={id => navigate(`/goals/color?goal=${encodeURIComponent(id)}`)} onBack={() => navigate('/goals')} />;
@@ -174,7 +176,6 @@ function AppContent() {
       if (saved) navigate('/goals');
       return saved;
     }} onBack={() => navigate('/goals')} />;
-    if (routePath === '/tasks') return <TodoScreen isActive />;
     if (routePath === '/sessions') return <SessionsScreen onDeleteSession={deleteSession} />;
     if (routePath === '/insights') return <DigestScreen />;
     if (routePath === '/terms') return <TermsScreen />;
@@ -192,7 +193,7 @@ function AppContent() {
     return <div className="empty-state"><h2>Page not found</h2><button className="text-action" type="button" onClick={() => navigate('/today')}>Go to Today</button></div>;
   })();
 
-  if (!state.term) return <div className="workspace-onboarding">{page}</div>;
+  if (!state.term) return <div className="workspace-onboarding"><div key={route} className="screen-transition">{page}</div></div>;
 
   return (
     <div className={`workspace-shell${sidebarExpanded ? ' is-sidebar-expanded' : ''}`}>
@@ -200,7 +201,7 @@ function AppContent() {
       <AppSidebar route={route} navigate={navigate} expanded={sidebarExpanded} pinned={sidebarPinned} onExpandedChange={setSidebarPinned} onHoverChange={setSidebarHovered} />
       {mutationError && <div role="alert" className="workspace-toast">{mutationError}<button type="button" onClick={clearMutationError}>Dismiss</button></div>}
       <div className="workspace-main">
-        <main className="workspace-content" key={routePath}>{page}</main>
+        <main className="workspace-content"><div key={route} className="screen-transition">{page}</div></main>
       </div>
     </div>
   );
@@ -221,5 +222,5 @@ export default function App() {
   if (supabaseConfigError) return <div className="app-loading"><div className="form-panel"><h1 className="page-title">MinTrack needs configuration</h1><p>{supabaseConfigError}</p><p>Add <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> in your hosting environment, then redeploy.</p></div></div>;
   if (!session) return <Auth />;
 
-  return <StateProvider session={session}><CalendarProvider><AppContent /></CalendarProvider></StateProvider>;
+  return <StateProvider session={session}><AppContent /></StateProvider>;
 }

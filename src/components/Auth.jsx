@@ -45,7 +45,7 @@ export default function Auth() {
 
   return (
     <div className="min-h-screen w-full flex items-center justify-center p-8">
-      <div className="glass-panel auth-card w-full max-w-[500px] text-center animate-[slideUp_0.4s_cubic-bezier(0.16,1,0.3,1)]">
+      <div className="glass-panel auth-card w-full max-w-[500px] text-center screen-transition">
         <div className="auth-brand">
           <MinTrackMark size={44} />
           <h1 className="text-3xl font-bold mb-10 font-heading text-text-primary tracking-tight">Welcome Back</h1>

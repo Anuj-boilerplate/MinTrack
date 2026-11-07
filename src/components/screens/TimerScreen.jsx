@@ -1,5 +1,4 @@
 import { useStateContext } from '../../contexts/StateContext';
-import { motion } from 'framer-motion';
 import { hexToRgba } from '../../utils';
 
 export default function TimerScreen({ timer, onStop }) {
@@ -10,13 +9,9 @@ export default function TimerScreen({ timer, onStop }) {
   const accentColor = activeSubject?.accentColor || '#7652ed';
 
   return (
-    <motion.div
+    <div
       id="timer-screen"
       className="timer-viewport flex flex-col justify-between"
-      initial={{ scale: 0.95, opacity: 0 }}
-      animate={{ scale: 1, opacity: 1 }}
-      exit={{ scale: 0.95, opacity: 0 }}
-      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
     >
       {/* Top/Body Area */}
       <div className="flex flex-col w-full text-left items-start">
@@ -82,6 +77,6 @@ export default function TimerScreen({ timer, onStop }) {
           </button>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }

@@ -46,7 +46,6 @@ export function createMockDatabase(initialState = {}) {
       created_at: new Date().toISOString(),
       deadline: null,
       original_date: null,
-      google_event_id: null,
       version: 1
     },
     {
@@ -63,7 +62,6 @@ export function createMockDatabase(initialState = {}) {
       created_at: new Date().toISOString(),
       deadline: null,
       original_date: null,
-      google_event_id: null,
       version: 1
     }
   ];

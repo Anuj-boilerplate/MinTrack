@@ -3,7 +3,6 @@ import { motion } from 'framer-motion';
 
 const TABS = [
   { id: 'goals', label: 'Goals' },
-  { id: 'todo', label: 'To-Do' },
   { id: 'analytics', label: 'Digest' }
 ];
 

@@ -132,8 +132,7 @@ export function generateRecurringInstances({
         is_scratched_today: false,
         display_order: 0,
         created_at: new Date().toISOString(),
-        original_date: null,
-        google_event_id: null
+        original_date: null
       });
     }
     current.setDate(current.getDate() + 1);

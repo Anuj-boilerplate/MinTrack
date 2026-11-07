@@ -44,30 +44,42 @@ export default function TodayScreen({ navigate }) {
           <div className="panel-heading-row">
             <div>
               <h2 className="section-title">Today&rsquo;s plan</h2>
-              <p className="panel-description">Small steps add up.</p>
+              <p className="panel-description">Check the box when you finish a task.</p>
             </div>
-            <button type="button" className="text-action" onClick={() => setIsAddingTask(value => !value)}>
-              {isAddingTask ? 'Cancel' : 'Add task'}
+            <button
+              type="button"
+              className={`today-add-task${isAddingTask ? ' is-cancel' : ''}`}
+              aria-expanded={isAddingTask}
+              aria-controls="today-task-form"
+              onClick={() => setIsAddingTask(value => !value)}
+            >
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none"><path d={isAddingTask ? 'M5 5l10 10M15 5 5 15' : 'M10 3v14M3 10h14'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" /></svg>
+              <span>{isAddingTask ? 'Cancel' : 'Add a task'}</span>
             </button>
           </div>
 
-          {isAddingTask && (
-            <div className="today-task-entry">
+          <div className="today-task-entry" id="today-task-form" hidden={!isAddingTask}>
+            {isAddingTask && (
               <TaskForm
                 onSubmit={handleAddTask}
                 onCancel={() => setIsAddingTask(false)}
                 activeDateStr={today}
               />
-            </div>
-          )}
+            )}
+          </div>
 
           {todaysTasks.length > 0 ? (
             <div className="today-task-list">
               {todaysTasks.slice(0, 8).map(task => (
-                <label className={`today-task${task.is_completed ? ' is-complete' : ''}`} key={task.id}>
-                  <input type="checkbox" checked={Boolean(task.is_completed)} onChange={() => toggleTodoCompleted(task.id)} />
-                  <span>{task.title}</span>
-                </label>
+                <div className={`today-task${task.is_completed ? ' is-complete' : ''}`} key={task.id}>
+                  <span className="today-task-title">{task.title}</span>
+                  <input
+                    type="checkbox"
+                    checked={Boolean(task.is_completed)}
+                    aria-label={task.is_completed ? `Mark ${task.title} incomplete` : `Mark ${task.title} complete`}
+                    onChange={() => toggleTodoCompleted(task.id)}
+                  />
+                </div>
               ))}
             </div>
           ) : !isAddingTask ? (

@@ -4,7 +4,7 @@ import { useStateContext } from '../contexts/StateContext';
 const PAGE_TITLES = {
   '/today': 'Today', '/goals': 'Goals', '/goals/new': 'New goal',
   '/goals/edit': 'Edit goal', '/goals/color': 'Goal color', '/goals/color/custom': 'Custom goal color',
-  '/tasks': 'To-Do', '/sessions': 'Sessions', '/insights': 'Insights',
+  '/tasks': 'Today', '/sessions': 'Sessions', '/insights': 'Insights',
   '/sessions/new': 'Log study time',
   '/terms': 'Terms', '/settings': 'Settings', '/timer/setup': 'Focus session',
   '/timer/review': 'Review session', '/timer': 'Focus session', '/updates': 'What’s new'

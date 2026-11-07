@@ -33,10 +33,9 @@ npm install
 ```bash
 VITE_SUPABASE_URL=...
 VITE_SUPABASE_ANON_KEY=...
-VITE_GOOGLE_CLIENT_ID=...
 ```
 
-Values with the `VITE_` prefix are included in browser assets by Vite. Use only the Supabase anon/publishable key and Google OAuth client ID here; never put a Supabase service-role key, database password, or Google OAuth client secret in a `VITE_` variable. In Vercel, add these values under Project Settings → Environment Variables for the environments you use, then redeploy.
+Values with the `VITE_` prefix are included in browser assets by Vite. Use only the Supabase anon/publishable key here; never put a Supabase service-role key or database password in a `VITE_` variable. In Vercel, add these values under Project Settings → Environment Variables for the environments you use, then redeploy.
 
 The production site is `https://mintracking.vercel.app`. Add it to the allowed redirect URLs in Supabase Auth so magic links can return to the deployed app. The app builds auth redirects from the current site origin.
 
@@ -57,8 +56,8 @@ The active app lives in `src/` and uses `StateContext` plus `useTimer` as the ca
 
 Documentation:
 
-- [docs/database-schema.md](/C:/Users/Anuj/Alexandria/docs/database-schema.md)
+- [docs/database-schema.md](docs/database-schema.md)
 
 SQL schema:
 
-- [supabase/schema.sql](/C:/Users/Anuj/Alexandria/supabase/schema.sql)
+- [supabase/schema.sql](supabase/schema.sql)

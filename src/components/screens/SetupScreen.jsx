@@ -24,7 +24,7 @@ export default function SetupScreen() {
   };
 
   return (
-    <div id="setup-screen" className="animate-[screenFade_0.6s_cubic-bezier(0.25,0.46,0.45,0.94)]">
+    <div id="setup-screen">
       <div className="glass-panel max-w-[580px] mx-auto text-center">
         <p className="text-tiny text-text-muted uppercase tracking-[0.28em] mb-5">Make every minute count.</p>
         <span className="wordmark block mb-8">Mintrack</span>

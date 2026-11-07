@@ -291,7 +291,7 @@ export default function DigestScreen() {
   return (
     <div
       id="digest-screen"
-      className="dashboard-shell animate-[screenFade_0.6s_cubic-bezier(0.25,0.46,0.45,0.94)]"
+      className="dashboard-shell"
     >
       <div className="digest-header">
         <h1 className="digest-header__title">The Digest</h1>

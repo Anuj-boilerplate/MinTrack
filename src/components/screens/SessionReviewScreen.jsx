@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { formatHoursToMins } from '../../utils';
-import { motion } from 'framer-motion';
 
 export default function SessionReviewScreen({ reviewData, onSave, onDiscard, onCompleteTask, accentColor = '#7652ed', onBack }) {
   const hasLinkedTask = Boolean(reviewData?.taskId && reviewData?.taskTitle);
@@ -33,12 +32,9 @@ export default function SessionReviewScreen({ reviewData, onSave, onDiscard, onC
 
         {/* Task completion toggle — only renders when the session had a linked task */}
         {hasLinkedTask && (
-          <motion.button
+          <button
             type="button"
             aria-pressed={markComplete}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.15, duration: 0.3 }}
             onClick={() => setMarkComplete(prev => !prev)}
             className="mt-8 w-full flex items-center gap-3 px-4 py-3 rounded-xl border transition-all text-left"
             style={{
@@ -71,7 +67,7 @@ export default function SessionReviewScreen({ reviewData, onSave, onDiscard, onC
                 {markComplete ? 'Will mark as complete' : 'Tap to mark as complete'}
               </span>
             </span>
-          </motion.button>
+          </button>
         )}
 
         <div className="flex flex-col gap-3 mt-8 w-full">

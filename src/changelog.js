@@ -11,7 +11,7 @@ export const CHANGELOG = [
       },
       {
         title: 'A Clearer Study Workspace',
-        description: 'A responsive sidebar gives each area its own screen, including Today, Goals, To-Do, Sessions, Insights, Terms, and Settings. Goal editing, session logging, and Pomodoro setup now use dedicated screens.'
+        description: 'A responsive sidebar gives each area its own screen, including Today, Goals, Sessions, Insights, Terms, and Settings. Tasks live in Today. Goal editing, session logging, and Pomodoro setup use dedicated screens.'
       },
       {
         title: 'Goals in Focus',
@@ -38,33 +38,9 @@ export const CHANGELOG = [
     ]
   },
   {
-    version: '2.5.1',
-    date: '2026-08-10',
-    changes: [
-      {
-        title: "Visible Google Calendar Connection Errors",
-        description: "If connecting your Google Calendar fails, the Settings panel now shows the exact reason — missing credentials, expired one-time codes, or auth problems — instead of silently doing nothing."
-      }
-    ]
-  },
-  {
-    version: '2.5.0',
-    date: '2026-08-09',
-    changes: [
-      {
-        title: "Two-Way Calendar Sync",
-        description: "Every scheduled task now appears in your Google Calendar instantly — edits, reschedules, and completions mirror automatically, and recurring tasks become recurring calendar events. Events you create natively in Google show up in the runway within 30 seconds. No more manual add buttons."
-      }
-    ]
-  },
-  {
     version: '2.4.0',
     date: '2026-08-09',
     changes: [
-      {
-        title: "Google Calendar Integration",
-        description: "Connect your Google Calendar from Settings to see your busy days as blue markers across the runway, browse events on each active day, and push task deadlines straight into your calendar with one tap."
-      },
       {
         title: "Sign in with Google",
         description: "You can now sign in with Google instead of a magic link. If the email matches an existing account, your tasks and history carry over automatically."
@@ -110,8 +86,8 @@ export const CHANGELOG = [
     date: '2026-07-05',
     changes: [
       {
-        title: "To-Do Overhaul",
-        description: "Complete overhaul of the way to do list works, allowing for complete freedom in scheduling tasks."
+        title: "Flexible Task Scheduling",
+        description: "Tasks can be scheduled with more freedom across the active term."
       },
       {
         title: "Date Navigation Bounds",
@@ -170,10 +146,6 @@ export const CHANGELOG = [
         description: "Tap the ··· button on any goal card to open an inline 8-color palette. The chosen accent propagates through the card's title, progress bar, section labels, and CTA buttons — in both dark and light themes."
       },
       {
-        title: "To-Do Tab",
-        description: "A brand-new To-Do screen is now accessible from the navigation bar. Tasks are grouped by goal in a masonry card layout with Today and Backlog sections. Tasks can be added inline with a name, note, deadline, and priority level. Drag a backlog item to Today with a single tap."
-      },
-      {
         title: "Task Priority System",
         description: "Every task carries a Low / Medium / High priority. Priority is visualised as a coloured vertical rule to the left of each task, with opacity reflecting importance — subtle for low, full strength for high."
       },
@@ -199,7 +171,7 @@ export const CHANGELOG = [
       },
       {
         title: "Mobile-First Responsive Overhaul",
-        description: "All three tabs are now properly tuned for small screens. On mobile, goal cards are taller and less cramped, the coverflow is zoomed to fit, the To-Do masonry collapses to a single column, and form inputs respect the light-mode colour palette throughout."
+        description: "The app is tuned for small screens. On mobile, goal cards are taller and less cramped, the coverflow is zoomed to fit, and form inputs respect the light-mode colour palette throughout."
       },
       {
         title: "Analytics Tab Placeholder",

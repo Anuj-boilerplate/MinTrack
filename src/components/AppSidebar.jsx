@@ -3,7 +3,6 @@ import { useEffect } from 'react';
 const ITEMS = [
   { path: '/today', label: 'Today', icon: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></> },
   { path: '/goals', label: 'Goals', icon: <><path d="M4 19V5" /><path d="M4 19h16" /><path d="m7 15 4-4 3 2 5-6" /><path d="M19 7v4h-4" /></> },
-  { path: '/tasks', label: 'To-Do', icon: <><rect x="4" y="4" width="16" height="16" rx="3" /><path d="m8 12 2.5 2.5L16 9" /></> },
   { path: '/sessions', label: 'Sessions', icon: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l4 2" /></> },
   { path: '/insights', label: 'Insights', icon: <><path d="M4 19V5" /><path d="M4 19h16" /><path d="M8 15v-3M12 15V8M16 15v-5" /></> },
   { path: '/terms', label: 'Terms', icon: <><path d="M5 5.5A2.5 2.5 0 0 1 7.5 3H20v17H7.5A2.5 2.5 0 0 1 5 17.5z" /><path d="M5 6h12M9 10h7M9 14h5" /></> },
